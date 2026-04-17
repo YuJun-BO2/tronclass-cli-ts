@@ -4,6 +4,7 @@ import { runFjuAuth } from "./fjuAuth";
 import { runTodo } from "./todo";
 import { runCourseList } from "./course";
 import { runActivitiesList, runActivitiesView, runActivitiesDownload } from "./activities";
+import { runHomeworkList, runHomeworkSubmit } from "./homework";
 
 function printUsage(): void {
   console.log("Usage:");
@@ -13,11 +14,14 @@ function printUsage(): void {
   console.log("  tronclass activities list <course_id>         List activities of a course");
   console.log("  tronclass activities view <activity_id>       View details of an activity");
   console.log("  tronclass activities download <ref_id> <out>  Download a file from an activity");
+  console.log("  tronclass homework list <course_id>           List homework for a course");
+  console.log("  tronclass homework submit <act_id> <files...> Submit files for homework");
   console.log("    Options:");
-  console.log("      --fields f1,f2...   Specify fields to display (for courses, todo, activities)");
+  console.log("      --fields f1,f2...   Specify fields to display (for courses, todo, activities, homework)");
   console.log("      --all               Show all courses instead of only ongoing ones (for courses)");
   console.log("      --raw               Print the raw JSON response from the API (for courses)");
   console.log("      --preview           Download preview instead of original file (for activities download)");
+  console.log("      --draft             Submit homework as a draft (for homework submit)");
 }
 
 function parseUsername(args: string[]): string | null {
@@ -127,6 +131,41 @@ async function main(): Promise<void> {
 
       } else {
         console.error(`Unknown activities sub-command: ${subCommand}`);
+        printUsage();
+        process.exit(1);
+      }
+
+    } else if (command === "homework" || command === "h" || command === "hw") {
+      const subCommand = args[1];
+      const cmdArgs = args.slice(2);
+
+      if (subCommand === "list" || subCommand === "l" || subCommand === "ls") {
+        const courseId = cmdArgs[0];
+        if (!courseId || courseId.startsWith("-")) {
+          console.error("Missing course_id.");
+          printUsage();
+          process.exit(1);
+        }
+        const fields = parseFields(cmdArgs.slice(1));
+        await runHomeworkList(courseId, fields);
+
+      } else if (subCommand === "submit" || subCommand === "s") {
+        const activityId = cmdArgs[0];
+        if (!activityId || activityId.startsWith("-")) {
+          console.error("Missing activity_id.");
+          printUsage();
+          process.exit(1);
+        }
+        // all non-flag args after activityId are files
+        const files: string[] = [];
+        for (const arg of cmdArgs.slice(1)) {
+          if (!arg.startsWith("-")) files.push(arg);
+        }
+        const isDraft = hasFlag(cmdArgs, "--draft");
+        await runHomeworkSubmit(activityId, files, isDraft);
+
+      } else {
+        console.error(`Unknown homework sub-command: ${subCommand}`);
         printUsage();
         process.exit(1);
       }

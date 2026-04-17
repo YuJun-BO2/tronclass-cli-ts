@@ -21,3 +21,9 @@ During login, the CLI will:
 - detect captcha when required
 - download and try to open captcha image automatically
 - prompt for captcha input
+
+## Acknowledgments
+
+This project is heavily inspired by the original Python implementation of the [tronclass-cli](https://github.com/Howyoung/tronclass-cli) created by Howyoung. The API interaction patterns, command structures, and data flattening logic (such as `unflattenFields`) were ported from their work. 
+
+* Copyright (c) 2020 Howyoung (MIT License)

@@ -1,6 +1,11 @@
 import * as cheerio from "cheerio";
 import { BASE_URL, loadCookies, createHttpClient } from "./client";
 
+/**
+ * The nested field flattening/unflattening logic is ported from the original Python implementation:
+ * https://github.com/Howyoung/tronclass-cli
+ * Copyright (c) 2020 Howyoung (MIT License)
+ */
 function unflattenFields(flattenFields: string[]): string {
   const fields: Record<string, any> = {};
   for (const field of flattenFields) {

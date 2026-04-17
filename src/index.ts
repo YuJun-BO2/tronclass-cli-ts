@@ -3,16 +3,21 @@
 import { runFjuAuth } from "./fjuAuth";
 import { runTodo } from "./todo";
 import { runCourseList } from "./course";
+import { runActivitiesList, runActivitiesView, runActivitiesDownload } from "./activities";
 
 function printUsage(): void {
   console.log("Usage:");
   console.log("  tronclass auth -login <username>              Login to TronClass (FJU)");
   console.log("  tronclass todo [--fields f1,f2...]            View your to-do list");
   console.log("  tronclass courses list [options]              View your course list");
+  console.log("  tronclass activities list <course_id>         List activities of a course");
+  console.log("  tronclass activities view <activity_id>       View details of an activity");
+  console.log("  tronclass activities download <ref_id> <out>  Download a file from an activity");
   console.log("    Options:");
-  console.log("      --fields f1,f2...   Specify fields to display (default: id,name,instructors.name)");
-  console.log("      --all               Show all courses instead of only ongoing ones");
-  console.log("      --raw               Print the raw JSON response from the API");
+  console.log("      --fields f1,f2...   Specify fields to display (for courses, todo, activities)");
+  console.log("      --all               Show all courses instead of only ongoing ones (for courses)");
+  console.log("      --raw               Print the raw JSON response from the API (for courses)");
+  console.log("      --preview           Download preview instead of original file (for activities download)");
 }
 
 function parseUsername(args: string[]): string | null {
@@ -81,6 +86,47 @@ async function main(): Promise<void> {
         await runCourseList(fields, all, raw);
       } else {
         console.error(`Unknown courses sub-command: ${subCommand}`);
+        printUsage();
+        process.exit(1);
+      }
+
+    } else if (command === "activities" || command === "a") {
+      const subCommand = args[1];
+      const cmdArgs = args.slice(2);
+      
+      if (subCommand === "list" || subCommand === "l" || subCommand === "ls") {
+        const courseId = cmdArgs[0];
+        if (!courseId || courseId.startsWith("-")) {
+          console.error("Missing course_id.");
+          printUsage();
+          process.exit(1);
+        }
+        const fields = parseFields(cmdArgs.slice(1));
+        await runActivitiesList(courseId, fields);
+
+      } else if (subCommand === "view" || subCommand === "v") {
+        const activityId = cmdArgs[0];
+        if (!activityId || activityId.startsWith("-")) {
+          console.error("Missing activity_id.");
+          printUsage();
+          process.exit(1);
+        }
+        const fields = parseFields(cmdArgs.slice(1));
+        await runActivitiesView(activityId, fields);
+
+      } else if (subCommand === "download" || subCommand === "d" || subCommand === "dl") {
+        const refId = cmdArgs[0];
+        const outFile = cmdArgs[1];
+        if (!refId || !outFile || refId.startsWith("-") || outFile.startsWith("-")) {
+          console.error("Missing ref_id or output file.");
+          printUsage();
+          process.exit(1);
+        }
+        const preview = hasFlag(cmdArgs.slice(2), "--preview");
+        await runActivitiesDownload(refId, outFile, preview);
+
+      } else {
+        console.error(`Unknown activities sub-command: ${subCommand}`);
         printUsage();
         process.exit(1);
       }

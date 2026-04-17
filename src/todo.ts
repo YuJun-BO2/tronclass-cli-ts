@@ -1,5 +1,10 @@
 import { BASE_URL, loadCookies, createHttpClient } from "./client";
 
+/**
+ * The API endpoint discovery and default fields logic are inspired by the original Python implementation:
+ * https://github.com/Howyoung/tronclass-cli
+ * Copyright (c) 2020 Howyoung (MIT License)
+ */
 export async function runTodo(fields: string[] = ["course_name", "title", "end_time"]): Promise<void> {
   const jar = await loadCookies();
   const cookies = await jar.getCookies(BASE_URL);

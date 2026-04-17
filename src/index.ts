@@ -2,11 +2,17 @@
 
 import { runFjuAuth } from "./fjuAuth";
 import { runTodo } from "./todo";
+import { runCourseList } from "./course";
 
 function printUsage(): void {
   console.log("Usage:");
-  console.log("  tronclass auth -login <username>    Login to TronClass (FJU)");
-  console.log("  tronclass todo [--fields f1,f2...]  View your to-do list");
+  console.log("  tronclass auth -login <username>              Login to TronClass (FJU)");
+  console.log("  tronclass todo [--fields f1,f2...]            View your to-do list");
+  console.log("  tronclass courses list [options]              View your course list");
+  console.log("    Options:");
+  console.log("      --fields f1,f2...   Specify fields to display (default: id,name,instructors.name)");
+  console.log("      --all               Show all courses instead of only ongoing ones");
+  console.log("      --raw               Print the raw JSON response from the API");
 }
 
 function parseUsername(args: string[]): string | null {
@@ -37,6 +43,10 @@ function parseFields(args: string[]): string[] | undefined {
   return fieldsVal.split(",").map(f => f.trim());
 }
 
+function hasFlag(args: string[], flag: string): boolean {
+  return args.includes(flag);
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
@@ -60,6 +70,20 @@ async function main(): Promise<void> {
     } else if (command === "todo" || command === "t" || command === "td") {
       const fields = parseFields(args.slice(1));
       await runTodo(fields);
+
+    } else if (command === "courses" || command === "c") {
+      const subCommand = args[1];
+      if (subCommand === "list" || subCommand === "l" || subCommand === "ls") {
+        const cmdArgs = args.slice(2);
+        const fields = parseFields(cmdArgs);
+        const all = hasFlag(cmdArgs, "--all");
+        const raw = hasFlag(cmdArgs, "--raw");
+        await runCourseList(fields, all, raw);
+      } else {
+        console.error(`Unknown courses sub-command: ${subCommand}`);
+        printUsage();
+        process.exit(1);
+      }
 
     } else {
       console.error(`Unknown command: ${command}`);

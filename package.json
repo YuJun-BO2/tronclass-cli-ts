@@ -1,7 +1,8 @@
 {
   "name": "tronclass-cli-ts",
   "version": "0.1.0",
-  "description": "TypeScript CLI for FJU TronClass authentication",
+  "description": "A modern, cross-platform TypeScript CLI for the TronClass learning management system.",
+  "license": "Apache-2.0",
   "type": "commonjs",
   "bin": {
     "tronclass": "dist/index.js"

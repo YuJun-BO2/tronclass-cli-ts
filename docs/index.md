@@ -1,10 +1,10 @@
 # TronClass CLI (TypeScript)
 
-Welcome to the documentation for **TronClass CLI (TypeScript)**, a command-line interface designed specifically for interacting with the FJU TronClass system.
+Welcome to the documentation for **TronClass CLI (TypeScript)**, a comprehensive command-line interface for the TronClass learning management system.
 
 ## Overview
 
-This tool allows you to authenticate with FJU's CAS system, save your session, and interact with TronClass APIs directly from your terminal.
+This tool provides a powerful alternative to the TronClass web interface, allowing you to manage your courses, tasks, and materials directly from your terminal. While currently optimized for FJU's authentication system, the architecture is designed to be extensible for other institutions.
 
 ## Available Commands
 

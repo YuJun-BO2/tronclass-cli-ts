@@ -14,16 +14,23 @@ import prompts from "prompts";
 
 export async function runHomeworkList(
   courseId: string,
-  fields: string[] = ["id", "title", "deadline", "submitted", "score"]
+  fields: string[] = ["id", "title", "deadline", "status", "score"]
 ): Promise<void> {
   const jar = await loadCookies();
   const cookies = await jar.getCookies(BASE_URL);
   if (!cookies.some((cookie) => cookie.key === "session")) {
-    throw new Error("Not authenticated. Please run 'tronclass auth -login <username>' first.");
+    throw new Error("Not authenticated. Please run 'tronclass auth login <username>' first.");
   }
 
   const { client } = await createHttpClient(jar);
-  const apiFields = unflattenFields(fields);
+  const apiFieldsSet = new Set(fields);
+  if (fields.includes("status")) {
+    apiFieldsSet.add("submitted");
+    apiFieldsSet.add("is_closed");
+  }
+  apiFieldsSet.delete("status");
+  const apiFields = unflattenFields(Array.from(apiFieldsSet));
+
   let allHomework: any[] = [];
   let page = 1;
   const pageSize = 50;
@@ -62,8 +69,14 @@ export async function runHomeworkList(
   const tableData = allHomework.map((hw) => {
     const row: Record<string, any> = {};
     for (const field of fields) {
-      const val = getNestedValue(hw, field);
-      row[field] = val != null && val !== "" ? val : "N/A";
+      if (field === "status") {
+        if (hw.submitted) row[field] = "已繳交 (Submitted)";
+        else if (!hw.is_closed) row[field] = "待繳交 (To Submit)";
+        else row[field] = "未繳 (Overdue)";
+      } else {
+        const val = getNestedValue(hw, field);
+        row[field] = val != null && val !== "" ? val : "N/A";
+      }
     }
     return row;
   });

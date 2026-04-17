@@ -21,7 +21,7 @@ tronclass homework list 123456
 ```
 
 **Options:**
-*   `--fields <field1>,<field2>...`: Customize fields to display. Default: `id,title,deadline,submitted,score`.
+*   `--fields <field1>,<field2>...`: Customize fields to display. Default: `id,title,deadline,status,score`.
 
 ### `submit <activity_id> <files...>`
 Submit one or more files for a specific homework assignment.

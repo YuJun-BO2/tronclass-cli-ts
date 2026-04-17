@@ -12,18 +12,27 @@ import { unflattenFields, getNestedValue } from "./utils";
 
 export async function runActivitiesList(
   courseId: string,
-  fields: string[] = ["id", "title", "type"]
+  fields: string[] = ["id", "title", "type", "status", "end_time"]
 ): Promise<void> {
   const jar = await loadCookies();
   const cookies = await jar.getCookies(BASE_URL);
   const hasSessionCookie = cookies.some((cookie) => cookie.key === "session");
 
   if (!hasSessionCookie) {
-    throw new Error("Not authenticated. Please run 'tronclass auth -login <username>' first.");
+    throw new Error("Not authenticated. Please run 'tronclass auth login <username>' first.");
   }
 
   const { client } = await createHttpClient(jar);
-  const apiFields = unflattenFields(fields);
+  
+  const apiFieldsSet = new Set(fields);
+  if (fields.includes("status")) {
+    apiFieldsSet.add("is_closed");
+    apiFieldsSet.add("is_in_progress");
+    apiFieldsSet.add("is_started");
+  }
+  // remove custom status field from api fields
+  apiFieldsSet.delete("status");
+  const apiFields = unflattenFields(Array.from(apiFieldsSet));
 
   try {
     const res = await client.get<{ activities: any[] }>(`${BASE_URL}/api/courses/${courseId}/activities`, {
@@ -40,8 +49,15 @@ export async function runActivitiesList(
     const tableData = activities.map((activity) => {
       const row: Record<string, any> = {};
       for (const field of fields) {
-        const val = getNestedValue(activity, field);
-        row[field] = val != null && val !== "" ? val : "N/A";
+        if (field === "status") {
+          if (activity.is_closed) row[field] = "已結束 (Closed)";
+          else if (activity.is_in_progress) row[field] = "進行中 (In Progress)";
+          else if (activity.is_started === false) row[field] = "未開放 (Not Opened)";
+          else row[field] = "N/A";
+        } else {
+          const val = getNestedValue(activity, field);
+          row[field] = val != null && val !== "" ? val : "N/A";
+        }
       }
       return row;
     });

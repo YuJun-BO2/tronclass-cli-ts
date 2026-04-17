@@ -21,7 +21,7 @@ tronclass activities list 123456
 ```
 
 **Options:**
-*   `--fields <field1>,<field2>...`: Customize fields. Default: `id,title,type`.
+*   `--fields <field1>,<field2>...`: Customize fields. Default: `id,title,type,status,end_time`.
 
 ### `view <activity_id>`
 View detailed metadata for a specific activity (e.g., finding the `reference_id` to download a file). This outputs raw JSON data of the activity.

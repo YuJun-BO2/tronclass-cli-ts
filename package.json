@@ -4,7 +4,7 @@
   "description": "TypeScript CLI for FJU TronClass authentication",
   "type": "commonjs",
   "bin": {
-    "auth": "dist/index.js"
+    "tronclass": "dist/index.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

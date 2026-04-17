@@ -10,6 +10,25 @@ import { CookieJar } from "tough-cookie";
 const BASE_URL = "https://elearn2.fju.edu.tw";
 const SERVICE_PATH = "/login?next=/user/index";
 
+const CONFIG_DIR = path.join(os.homedir(), ".tronclass-cli");
+const COOKIE_FILE = path.join(CONFIG_DIR, "cookies.json");
+
+async function loadCookies(): Promise<CookieJar> {
+  try {
+    const data = await fs.readFile(COOKIE_FILE, "utf-8");
+    const json = JSON.parse(data);
+    return CookieJar.fromJSON(json);
+  } catch {
+    return new CookieJar();
+  }
+}
+
+async function saveCookies(jar: CookieJar): Promise<void> {
+  await fs.mkdir(CONFIG_DIR, { recursive: true });
+  const json = jar.toJSON();
+  await fs.writeFile(COOKIE_FILE, JSON.stringify(json, null, 2), "utf-8");
+}
+
 interface LoginForm {
   submitUrl: string;
   lt: string;
@@ -141,9 +160,8 @@ async function promptCaptcha(): Promise<string> {
   return response.captcha as string;
 }
 
-async function createHttpClient(): Promise<HttpClient> {
+async function createHttpClient(jar: CookieJar): Promise<HttpClient> {
   const { wrapper } = await import("axios-cookiejar-support");
-  const jar = new CookieJar();
 
   const wrapped = wrapper(
     axios.create({
@@ -164,9 +182,27 @@ async function createHttpClient(): Promise<HttpClient> {
 }
 
 export async function runFjuAuth(username: string): Promise<void> {
-  const password = await promptPassword();
+  const jar = await loadCookies();
+  const { client } = await createHttpClient(jar);
 
-  const { client, jar } = await createHttpClient();
+  // 嘗試使用現有 Cookie 造訪服務，檢查是否已經登入
+  try {
+    const checkResponse = await client.get<string>(getServiceUrl(), { responseType: "text" });
+    const finalUrl = getResponseUrl(checkResponse, getServiceUrl());
+    const body = checkResponse.data ?? "";
+    const cookies = await jar.getCookies(BASE_URL);
+    const hasSessionCookie = cookies.some((cookie) => cookie.key === "session");
+    const loginFailed = finalUrl.includes("/cas/login") || body.includes('name="execution"');
+
+    if (!loginFailed && hasSessionCookie) {
+      console.log(`Already authenticated as ${username}. Session restored.`);
+      return;
+    }
+  } catch {
+    // 忽略錯誤，繼續進行正常的登入流程
+  }
+
+  const password = await promptPassword();
 
   const loginForm = await parseLoginForm(client);
   if (!loginForm.lt || !loginForm.execution) {
@@ -219,5 +255,6 @@ export async function runFjuAuth(username: string): Promise<void> {
     throw new Error("Authentication failed. Please check username, password, and captcha.");
   }
 
-  console.log(`Authenticated as ${username}.`);
+  await saveCookies(jar);
+  console.log(`Authenticated as ${username}. Session saved.`);
 }

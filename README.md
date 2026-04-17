@@ -4,7 +4,7 @@ A minimal TypeScript CLI focused on FJU authentication only.
 
 ## Usage
 
-auth -login <username>
+tronclass auth -login <username>
 
 No provider argument is required.
 
@@ -12,7 +12,7 @@ No provider argument is required.
 
 1. npm install
 2. npm run build
-3. npm exec -- auth -login <username>
+3. npm exec -- tronclass auth -login <username>
 
 Note: `-login` starts with `-`, so npm may parse it as npm options unless you put `--` before the command arguments.
 

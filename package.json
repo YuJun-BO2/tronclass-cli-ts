@@ -1,0 +1,30 @@
+{
+  "name": "tronclass-cli-ts",
+  "version": "0.1.0",
+  "description": "TypeScript CLI for FJU TronClass authentication",
+  "type": "commonjs",
+  "bin": {
+    "auth": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "axios": "^1.9.0",
+    "axios-cookiejar-support": "^6.0.4",
+    "cheerio": "^1.0.0",
+    "prompts": "^2.4.2",
+    "tough-cookie": "^5.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.2",
+    "@types/prompts": "^2.4.9",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  }
+}

@@ -5,12 +5,12 @@ The `auth` command is used to authenticate your account with the FJU CAS (Centra
 ## Usage
 
 ```bash
-tronclass auth -login <username>
+tronclass auth login <username>
 ```
 
 *(If running locally via npm)*:
 ```bash
-npm run dev -- auth -login <username>
+npm run dev -- auth login <username>
 ```
 
 ## How it works
@@ -24,5 +24,5 @@ npm run dev -- auth -login <username>
 
 Login with a student ID:
 ```bash
-tronclass auth -login 409123456
+tronclass auth login 409123456
 ```

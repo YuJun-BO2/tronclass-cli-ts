@@ -8,7 +8,7 @@ import { runHomeworkList, runHomeworkSubmit } from "./homework";
 
 function printUsage(): void {
   console.log("Usage:");
-  console.log("  tronclass auth -login <username>              Login to TronClass (FJU)");
+  console.log("  tronclass auth login <username>               Login to TronClass (FJU)");
   console.log("  tronclass todo [--fields f1,f2...]            View your to-do list");
   console.log("  tronclass courses list [options]              View your course list");
   console.log("  tronclass activities list <course_id>         List activities of a course");
@@ -22,20 +22,6 @@ function printUsage(): void {
   console.log("      --raw               Print the raw JSON response from the API (for courses)");
   console.log("      --preview           Download preview instead of original file (for activities download)");
   console.log("      --draft             Submit homework as a draft (for homework submit)");
-}
-
-function parseUsername(args: string[]): string | null {
-  const loginFlagIndex = args.findIndex((arg) => arg === "-login" || arg === "--login");
-  if (loginFlagIndex === -1) {
-    return null;
-  }
-
-  const username = args[loginFlagIndex + 1];
-  if (!username || username.startsWith("-")) {
-    return null;
-  }
-
-  return username;
 }
 
 function parseFields(args: string[]): string[] | undefined {
@@ -68,13 +54,20 @@ async function main(): Promise<void> {
 
   try {
     if (command === "auth") {
-      const username = parseUsername(args.slice(1));
-      if (!username) {
-        console.error("Missing or invalid username.");
+      const subCommand = args[1];
+      if (subCommand === "login") {
+        const username = args[2];
+        if (!username || username.startsWith("-")) {
+          console.error("Missing or invalid username.");
+          printUsage();
+          process.exit(1);
+        }
+        await runFjuAuth(username);
+      } else {
+        console.error(`Unknown auth sub-command: ${subCommand}`);
         printUsage();
         process.exit(1);
       }
-      await runFjuAuth(username);
 
     } else if (command === "todo" || command === "t" || command === "td") {
       const fields = parseFields(args.slice(1));

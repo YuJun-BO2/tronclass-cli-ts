@@ -36,7 +36,7 @@ Once installed or linked, use the `tronclass` command:
 
 ```bash
 # Login
-tronclass auth -login <your_username>
+tronclass auth login <your_username>
 
 # List ongoing courses
 tronclass courses list

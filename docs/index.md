@@ -28,5 +28,5 @@ npm run dev -- auth -login <your_student_id>
 If the package is installed globally (e.g., via `npm link` or `npm install -g`), you can use the `tronclass` command directly:
 
 ```bash
-tronclass auth -login <your_student_id>
+tronclass auth login <your_student_id>
 ```

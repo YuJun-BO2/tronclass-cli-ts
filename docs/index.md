@@ -16,17 +16,28 @@ Here is a quick overview of the available commands. Click on each command for mo
 *   **[activities](./activities.md)**: View and download course materials and activities.
 *   **[homework](./homework.md)**: View homework lists and submit files to assignments.
 
-## Getting Started (Development)
+## Installation
+
+The easiest way to get started is to install the package globally via npm:
+
+```bash
+npm install -g tronclass-cli
+```
+
+## Getting Started
+
+Once installed, you can use the `tronclass` command directly from your terminal:
+
+```bash
+# Authenticate with your student ID
+tronclass auth login <your_student_id>
+```
+
+### Development Setup
 
 If you are running the tool locally from the source code, you can execute commands using `npm run dev --` followed by the command:
 
 ```bash
 npm install
-npm run dev -- auth -login <your_student_id>
-```
-
-If the package is installed globally (e.g., via `npm link` or `npm install -g`), you can use the `tronclass` command directly:
-
-```bash
-tronclass auth login <your_student_id>
+npm run dev -- auth login <your_student_id>
 ```

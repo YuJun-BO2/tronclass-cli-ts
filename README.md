@@ -14,6 +14,13 @@ A modern, fast, and cross-platform command-line interface for the TronClass lear
 
 ## Installation
 
+### Via NPM (Recommended)
+
+Install the CLI globally on your system:
+```bash
+npm install -g tronclass-cli
+```
+
 ### From Source
 
 1. Clone the repository.
@@ -32,17 +39,20 @@ A modern, fast, and cross-platform command-line interface for the TronClass lear
 
 ## Usage
 
-Once installed or linked, use the `tronclass` command:
+Once installed, use the `tronclass` command from anywhere:
 
 ```bash
-# Login
+# Login to your account
 tronclass auth login <your_username>
 
 # List ongoing courses
 tronclass courses list
 
-# View upcoming tasks
+# View upcoming tasks and deadlines
 tronclass todo
+
+# List materials for a specific course
+tronclass activities list <course_id>
 
 # Download course material
 tronclass activities download <ref_id> <output_path>

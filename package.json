@@ -1,16 +1,29 @@
 {
-  "name": "tronclass-cli-ts",
+  "name": "tronclass-cli",
   "version": "0.1.0",
   "description": "A modern, cross-platform TypeScript CLI for the TronClass learning management system.",
   "license": "Apache-2.0",
   "type": "commonjs",
+  "keywords": [
+    "tronclass",
+    "cli",
+    "fju",
+    "lms",
+    "education"
+  ],
+  "author": "yujun",
+  "main": "dist/index.js",
+  "files": [
+    "dist"
+  ],
   "bin": {
     "tronclass": "dist/index.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/index.ts",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
   },
   "engines": {
     "node": ">=18"

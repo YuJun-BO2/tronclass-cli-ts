@@ -1,33 +1,13 @@
-import axios, { AxiosInstance, AxiosResponse } from "axios";
+import { AxiosInstance, AxiosResponse } from "axios";
 import * as cheerio from "cheerio";
 import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import prompts from "prompts";
-import { CookieJar } from "tough-cookie";
+import { BASE_URL, loadCookies, saveCookies, createHttpClient } from "./client";
 
-const BASE_URL = "https://elearn2.fju.edu.tw";
 const SERVICE_PATH = "/login?next=/user/index";
-
-const CONFIG_DIR = path.join(os.homedir(), ".tronclass-cli");
-const COOKIE_FILE = path.join(CONFIG_DIR, "cookies.json");
-
-async function loadCookies(): Promise<CookieJar> {
-  try {
-    const data = await fs.readFile(COOKIE_FILE, "utf-8");
-    const json = JSON.parse(data);
-    return CookieJar.fromJSON(json);
-  } catch {
-    return new CookieJar();
-  }
-}
-
-async function saveCookies(jar: CookieJar): Promise<void> {
-  await fs.mkdir(CONFIG_DIR, { recursive: true });
-  const json = jar.toJSON();
-  await fs.writeFile(COOKIE_FILE, JSON.stringify(json, null, 2), "utf-8");
-}
 
 interface LoginForm {
   submitUrl: string;
@@ -37,11 +17,6 @@ interface LoginForm {
   submitText: string;
   needsCaptcha: boolean;
   captchaUrl: string;
-}
-
-interface HttpClient {
-  client: AxiosInstance;
-  jar: CookieJar;
 }
 
 function getServiceUrl(): string {
@@ -158,27 +133,6 @@ async function promptCaptcha(): Promise<string> {
   );
 
   return response.captcha as string;
-}
-
-async function createHttpClient(jar: CookieJar): Promise<HttpClient> {
-  const { wrapper } = await import("axios-cookiejar-support");
-
-  const wrapped = wrapper(
-    axios.create({
-      jar,
-      withCredentials: true,
-      maxRedirects: 20,
-      headers: {
-        Referer: `${BASE_URL}/`,
-        "User-Agent": "tronclass-cli-ts/0.1.0",
-      },
-    } as any),
-  );
-
-  return {
-    client: wrapped as AxiosInstance,
-    jar,
-  };
 }
 
 export async function runFjuAuth(username: string): Promise<void> {

@@ -1,6 +1,6 @@
 {
   "name": "tronclass-cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A modern, cross-platform TypeScript CLI for the TronClass learning management system.",
   "license": "Apache-2.0",
   "type": "commonjs",
@@ -11,7 +11,15 @@
     "lms",
     "education"
   ],
-  "author": "yujun",
+  "author": "YuJun",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YuJun-BO2/tronclass-cli-ts.git"
+  },
+  "homepage": "https://github.com/YuJun-BO2/tronclass-cli-ts#readme",
+  "bugs": {
+    "url": "https://github.com/YuJun-BO2/tronclass-cli-ts/issues"
+  },
   "main": "dist/index.js",
   "files": [
     "dist"

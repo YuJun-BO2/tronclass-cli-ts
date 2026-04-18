@@ -1,7 +1,10 @@
-import * as cheerio from "cheerio";
 import { BASE_URL, loadCookies, createHttpClient } from "./client";
 import { unflattenFields, getNestedValue } from "./utils";
 
+/**
+ * The optimized API endpoint discovery and query logic are inspired by the Tronclass-API project.
+ * Copyright (c) 2026 Seven317 (MIT License)
+ */
 export async function runCourseList(
   fields: string[] = ["id", "name", "instructors.name"],
   all: boolean = false,
@@ -12,64 +15,38 @@ export async function runCourseList(
   const hasSessionCookie = cookies.some((cookie) => cookie.key === "session");
 
   if (!hasSessionCookie) {
-    throw new Error("Not authenticated. Please run 'tronclass auth -login <username>' first.");
+    throw new Error("Not authenticated. Please run 'tronclass auth login <username>' first.");
   }
 
   const { client } = await createHttpClient(jar);
 
-  let userId: string;
-  try {
-    const userIndexRes = await client.get<string>(`${BASE_URL}/user/index`);
-    const $ = cheerio.load(userIndexRes.data);
-    userId = $("#userId").attr("value") || "";
-    if (!userId) {
-      throw new Error("Could not find userId in /user/index page.");
-    }
-  } catch (error) {
-    throw new Error("Failed to fetch user ID. Your session might be expired.");
-  }
+  const apiFields = raw ? "" : unflattenFields([...new Set([...fields, "start_date", "end_date"])]);
+  const conditions = all ? {} : { status: "ongoing" };
 
   let allCourses: any[] = [];
-  let page = 1;
-  const pageSize = 50;
-  // If raw or filtering by ongoing (!all), we need start_date and end_date.
-  const apiFields = raw ? "" : unflattenFields([...new Set([...fields, "start_date", "end_date"])]);
 
   try {
-    while (true) {
-      const res = await client.get<{ courses: any[]; pages: number }>(`${BASE_URL}/api/users/${userId}/courses`, {
-        params: {
-          page,
-          page_size: pageSize,
-          ...(apiFields ? { fields: apiFields } : {}),
-        },
-        headers: {
-          Accept: "application/json",
-        },
-      });
+    const params: Record<string, any> = {};
+    if (Object.keys(conditions).length > 0) {
+      params.conditions = JSON.stringify(conditions);
+    }
+    if (apiFields) {
+      params.fields = apiFields;
+    }
 
-      const data = res.data;
-      if (data && Array.isArray(data.courses)) {
-        allCourses.push(...data.courses);
-      }
+    const res = await client.get<{ courses: any[] }>(`${BASE_URL}/api/my-courses`, {
+      params,
+      headers: {
+        Accept: "application/json",
+      },
+    });
 
-      if (!data || !data.pages || page >= data.pages) {
-        break;
-      }
-      page++;
+    const data = res.data;
+    if (data && Array.isArray(data.courses)) {
+      allCourses = data.courses;
     }
   } catch (error) {
     throw new Error("Failed to fetch courses from API.");
-  }
-
-  if (!all) {
-    const now = new Date();
-    allCourses = allCourses.filter((course) => {
-      if (!course.start_date || !course.end_date) return false;
-      const start = new Date(course.start_date);
-      const end = new Date(course.end_date);
-      return now >= start && now <= end;
-    });
   }
 
   if (allCourses.length === 0) {

@@ -73,6 +73,10 @@ This project is heavily inspired by the original Python implementation of the [t
 
 * Copyright (c) 2020 Howyoung (MIT License)
 
+Recent optimizations for API endpoint discovery (e.g., fetching courses) were inspired by the [Tronclass-API](https://github.com/Seven317/Tronclass-API) project.
+
+* Copyright (c) 2026 Seven317 (MIT License)
+
 ## License
 
 This project is licensed under the **Apache License 2.0**. See the [LICENSE](./LICENSE) file for details.

@@ -1,14 +1,18 @@
 #!/usr/bin/env node
 
 import { runFjuAuth } from "./fjuAuth";
+import { runApiAuth } from "./apiAuth";
 import { runTodo } from "./todo";
 import { runCourseList } from "./course";
 import { runActivitiesList, runActivitiesView, runActivitiesDownload } from "./activities";
 import { runHomeworkList, runHomeworkSubmit } from "./homework";
+import { loadConfig, clearAuth, loadCookies } from "./client";
 
 function printUsage(): void {
   console.log("Usage:");
-  console.log("  tronclass auth login <username>               Login to TronClass (FJU)");
+  console.log("  tronclass auth login [--fju] <username>       Login to TronClass");
+  console.log("  tronclass auth check                          Check current authentication status");
+  console.log("  tronclass auth logout                         Clear saved session");
   console.log("  tronclass todo [--fields f1,f2...]            View your to-do list");
   console.log("  tronclass courses list [options]              View your course list");
   console.log("  tronclass activities list <course_id>         List activities of a course");
@@ -22,6 +26,7 @@ function printUsage(): void {
   console.log("      --raw               Print the raw JSON response from the API (for courses)");
   console.log("      --preview           Download preview instead of original file (for activities download)");
   console.log("      --draft             Submit homework as a draft (for homework submit)");
+  console.log("      --fju               Use FJU-specific login flow handling interactive captchas");
 }
 
 function parseFields(args: string[]): string[] | undefined {
@@ -55,14 +60,40 @@ async function main(): Promise<void> {
   try {
     if (command === "auth") {
       const subCommand = args[1];
+
       if (subCommand === "login") {
-        const username = args[2];
-        if (!username || username.startsWith("-")) {
+        const isFju = hasFlag(args, "--fju");
+        const positionalArgs = args.slice(2).filter(arg => !arg.startsWith("-"));
+        const username = positionalArgs[0];
+
+        if (!username) {
           console.error("Missing or invalid username.");
           printUsage();
           process.exit(1);
         }
-        await runFjuAuth(username);
+
+        if (isFju) {
+          await runFjuAuth(username);
+        } else {
+          await runApiAuth(username);
+        }
+      } else if (subCommand === "check") {
+        const config = await loadConfig();
+        const jar = await loadCookies();
+        const cookies = await jar.getCookies(config.baseUrl);
+
+        if (cookies.length > 0 && config.username) {
+          console.log(`Authenticated as: ${config.username}`);
+          if (config.studentId) console.log(`Student ID: ${config.studentId}`);
+          console.log(`Base URL: ${config.baseUrl}`);
+          console.log(`School Config: ${config.school || "custom"}`);
+          console.log("Session cookies are present.");
+        } else {
+          console.log("Not authenticated.");
+        }
+      } else if (subCommand === "logout") {
+        await clearAuth();
+        console.log("Session cleared.");
       } else {
         console.error(`Unknown auth sub-command: ${subCommand}`);
         printUsage();
@@ -92,34 +123,35 @@ async function main(): Promise<void> {
       const cmdArgs = args.slice(2);
       
       if (subCommand === "list" || subCommand === "l" || subCommand === "ls") {
-        const courseId = cmdArgs[0];
-        if (!courseId || courseId.startsWith("-")) {
+        const courseId = cmdArgs.filter(arg => !arg.startsWith("-"))[0];
+        if (!courseId) {
           console.error("Missing course_id.");
           printUsage();
           process.exit(1);
         }
-        const fields = parseFields(cmdArgs.slice(1));
+        const fields = parseFields(cmdArgs);
         await runActivitiesList(courseId, fields);
 
       } else if (subCommand === "view" || subCommand === "v") {
-        const activityId = cmdArgs[0];
-        if (!activityId || activityId.startsWith("-")) {
+        const activityId = cmdArgs.filter(arg => !arg.startsWith("-"))[0];
+        if (!activityId) {
           console.error("Missing activity_id.");
           printUsage();
           process.exit(1);
         }
-        const fields = parseFields(cmdArgs.slice(1));
+        const fields = parseFields(cmdArgs);
         await runActivitiesView(activityId, fields);
 
       } else if (subCommand === "download" || subCommand === "d" || subCommand === "dl") {
-        const refId = cmdArgs[0];
-        const outFile = cmdArgs[1];
-        if (!refId || !outFile || refId.startsWith("-") || outFile.startsWith("-")) {
+        const positionalArgs = cmdArgs.filter(arg => !arg.startsWith("-") && arg !== "--preview");
+        const refId = positionalArgs[0];
+        const outFile = positionalArgs[1];
+        if (!refId || !outFile) {
           console.error("Missing ref_id or output file.");
           printUsage();
           process.exit(1);
         }
-        const preview = hasFlag(cmdArgs.slice(2), "--preview");
+        const preview = hasFlag(cmdArgs, "--preview");
         await runActivitiesDownload(refId, outFile, preview);
 
       } else {
@@ -133,27 +165,24 @@ async function main(): Promise<void> {
       const cmdArgs = args.slice(2);
 
       if (subCommand === "list" || subCommand === "l" || subCommand === "ls") {
-        const courseId = cmdArgs[0];
-        if (!courseId || courseId.startsWith("-")) {
+        const courseId = cmdArgs.filter(arg => !arg.startsWith("-"))[0];
+        if (!courseId) {
           console.error("Missing course_id.");
           printUsage();
           process.exit(1);
         }
-        const fields = parseFields(cmdArgs.slice(1));
+        const fields = parseFields(cmdArgs);
         await runHomeworkList(courseId, fields);
 
       } else if (subCommand === "submit" || subCommand === "s") {
-        const activityId = cmdArgs[0];
-        if (!activityId || activityId.startsWith("-")) {
+        const positionalArgs = cmdArgs.filter(arg => !arg.startsWith("-") && arg !== "--draft");
+        const activityId = positionalArgs[0];
+        if (!activityId) {
           console.error("Missing activity_id.");
           printUsage();
           process.exit(1);
         }
-        // all non-flag args after activityId are files
-        const files: string[] = [];
-        for (const arg of cmdArgs.slice(1)) {
-          if (!arg.startsWith("-")) files.push(arg);
-        }
+        const files = positionalArgs.slice(1);
         const isDraft = hasFlag(cmdArgs, "--draft");
         await runHomeworkSubmit(activityId, files, isDraft);
 

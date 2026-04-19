@@ -1,13 +1,38 @@
-import axios, { AxiosInstance } from "axios";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { CookieJar } from "tough-cookie";
-
-export const BASE_URL = "https://elearn2.fju.edu.tw";
+import { TronClass } from "tronclass-api";
 
 const CONFIG_DIR = path.join(os.homedir(), ".tronclass-cli");
 const COOKIE_FILE = path.join(CONFIG_DIR, "cookies.json");
+const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
+
+export const DEFAULT_BASE_URL = "https://elearn2.fju.edu.tw";
+
+export interface CliConfig {
+  username?: string;
+  studentId?: string;
+  baseUrl: string;
+  school?: string;
+}
+
+export async function loadConfig(): Promise<CliConfig> {
+  try {
+    const data = await fs.readFile(CONFIG_FILE, "utf-8");
+    const json = JSON.parse(data);
+    return { baseUrl: DEFAULT_BASE_URL, ...json };
+  } catch {
+    return { baseUrl: DEFAULT_BASE_URL };
+  }
+}
+
+export async function saveConfig(config: Partial<CliConfig>): Promise<void> {
+  await fs.mkdir(CONFIG_DIR, { recursive: true });
+  const existing = await loadConfig();
+  const merged = { ...existing, ...config };
+  await fs.writeFile(CONFIG_FILE, JSON.stringify(merged, null, 2), "utf-8");
+}
 
 export async function loadCookies(): Promise<CookieJar> {
   try {
@@ -25,28 +50,27 @@ export async function saveCookies(jar: CookieJar): Promise<void> {
   await fs.writeFile(COOKIE_FILE, JSON.stringify(json, null, 2), "utf-8");
 }
 
-export interface HttpClient {
-  client: AxiosInstance;
-  jar: CookieJar;
+export async function clearAuth(): Promise<void> {
+  await fs.rm(COOKIE_FILE, { force: true }).catch(() => {});
+  await fs.rm(CONFIG_FILE, { force: true }).catch(() => {});
 }
 
-export async function createHttpClient(jar: CookieJar): Promise<HttpClient> {
-  const { wrapper } = await import("axios-cookiejar-support");
+export async function initApi(): Promise<{ api: TronClass; config: CliConfig }> {
+  const config = await loadConfig();
+  const baseUrl = config.baseUrl || DEFAULT_BASE_URL;
+  const jar = await loadCookies();
+  const cookies = await jar.getCookies(baseUrl);
+  const hasSessionCookie = cookies.length > 0;
 
-  const wrapped = wrapper(
-    axios.create({
-      jar,
-      withCredentials: true,
-      maxRedirects: 20,
-      headers: {
-        Referer: `${BASE_URL}/`,
-        "User-Agent": "tronclass-cli-ts/0.1.0",
-      },
-    } as any),
-  );
+  if (!hasSessionCookie) {
+    throw new Error("Not authenticated. Please run 'tronclass auth login <username>' first.");
+  }
 
-  return {
-    client: wrapped as AxiosInstance,
-    jar,
-  };
+  const api = new TronClass(baseUrl);
+  (api as any).auth.loggedIn = true;
+  const sdkJar = (api as any).httpClient.jar;
+  for (const cookie of cookies) {
+    await sdkJar.setCookie(cookie, baseUrl);
+  }
+  return { api, config };
 }

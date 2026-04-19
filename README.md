@@ -42,8 +42,17 @@ npm install -g tronclass-cli
 Once installed, use the `tronclass` command from anywhere:
 
 ```bash
-# Login to your account
+# Login to your account (generic API flow)
 tronclass auth login <your_username>
+
+# Login using FJU-specific interactive CAPTCHA flow
+tronclass auth login --fju <your_username>
+
+# Check current authentication status
+tronclass auth check
+
+# Clear saved session
+tronclass auth logout
 
 # List ongoing courses
 tronclass courses list
@@ -69,13 +78,11 @@ For more detailed usage, please refer to the [Documentation](./docs/index.md).
 
 ## Acknowledgments
 
-This project is heavily inspired by the original Python implementation of the [tronclass-cli](https://github.com/Howyoung/tronclass-cli) created by Howyoung. The API interaction patterns, command structures, and data flattening logic (such as `unflattenFields`) were ported from their work. 
+This project is built on top of the powerful [Tronclass-API](https://github.com/seven-317/Tronclass-API) SDK, which provides robust API interactions, type safety, rate limiting, and authentication handling. 
 
-* Copyright (c) 2020 Howyoung (MIT License)
+* Powered by Tronclass-API: Copyright (c) 2026 Seven317 (MIT License)
 
-Recent optimizations for API endpoint discovery (e.g., fetching courses) were inspired by the [Tronclass-API](https://github.com/Seven317/Tronclass-API) project.
-
-* Copyright (c) 2026 Seven317 (MIT License)
+*(Note: Earlier versions of this CLI were inspired by the original Python implementation of the `tronclass-cli` created by Howyoung. We retain deep appreciation for their pioneering work on API endpoints and data structure logic.)*
 
 ## License
 

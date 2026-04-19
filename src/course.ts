@@ -1,4 +1,4 @@
-import { BASE_URL, loadCookies, createHttpClient } from "./client";
+import { initApi } from "./client";
 import { unflattenFields, getNestedValue } from "./utils";
 
 /**
@@ -10,15 +10,7 @@ export async function runCourseList(
   all: boolean = false,
   raw: boolean = false
 ): Promise<void> {
-  const jar = await loadCookies();
-  const cookies = await jar.getCookies(BASE_URL);
-  const hasSessionCookie = cookies.some((cookie) => cookie.key === "session");
-
-  if (!hasSessionCookie) {
-    throw new Error("Not authenticated. Please run 'tronclass auth login <username>' first.");
-  }
-
-  const { client } = await createHttpClient(jar);
+  const { api } = await initApi();
 
   const apiFields = raw ? "" : unflattenFields([...new Set([...fields, "start_date", "end_date"])]);
   const conditions = all ? {} : { status: "ongoing" };
@@ -26,30 +18,12 @@ export async function runCourseList(
   let allCourses: any[] = [];
 
   try {
-    const params: Record<string, any> = {};
-    if (Object.keys(conditions).length > 0) {
-      params.conditions = JSON.stringify(conditions);
-    }
-    if (apiFields) {
-      params.fields = apiFields;
-    }
-
-    const res = await client.get<{ courses: any[] }>(`${BASE_URL}/api/my-courses`, {
-      params,
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    const data = res.data;
-    if (data && Array.isArray(data.courses)) {
-      allCourses = data.courses;
-    }
+    allCourses = await api.courses.getMyCourses(conditions);
   } catch (error) {
     throw new Error("Failed to fetch courses from API.");
   }
 
-  if (allCourses.length === 0) {
+  if (!allCourses || allCourses.length === 0) {
     console.log("No courses found.");
     return;
   }

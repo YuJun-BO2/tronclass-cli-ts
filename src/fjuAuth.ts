@@ -1,11 +1,10 @@
-import { AxiosInstance, AxiosResponse } from "axios";
-import * as cheerio from "cheerio";
 import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import prompts from "prompts";
-import { BASE_URL, loadCookies, saveCookies, createHttpClient } from "./client";
+import { TronClass } from "tronclass-api";
+import { DEFAULT_BASE_URL, loadConfig, saveConfig, loadCookies, saveCookies } from "./client";
 
 const SERVICE_PATH = "/login?next=/user/index";
 
@@ -20,7 +19,7 @@ interface LoginForm {
 }
 
 function getServiceUrl(): string {
-  return `${BASE_URL}${SERVICE_PATH}`;
+  return `${DEFAULT_BASE_URL}${SERVICE_PATH}`;
 }
 
 function getLoginUrl(): string {
@@ -29,47 +28,49 @@ function getLoginUrl(): string {
     service: getServiceUrl(),
     locale: "zh_TW",
   });
-  return `${BASE_URL}/cas/login?${params.toString()}`;
+  return `/cas/login?${params.toString()}`;
 }
 
-function getResponseUrl(response: AxiosResponse, fallback: string): string {
-  const requestObj = response.request as { res?: { responseUrl?: string } } | undefined;
-  return requestObj?.res?.responseUrl ?? fallback;
+function extractInputValue(html: string, name: string, defaultValue = ""): string {
+  const regex = new RegExp(`<input[^>]*name=["']${name}["'][^>]*value=["']([^"']*)["']`, "i");
+  const match = html.match(regex);
+  if (!match) {
+    const regex2 = new RegExp(`value=["']([^"']*)["'][^>]*name=["']${name}["']`, "i");
+    const match2 = html.match(regex2);
+    return match2 ? match2[1] : defaultValue;
+  }
+  return match[1];
 }
 
-function extractInputValue($: cheerio.CheerioAPI, name: string, defaultValue = ""): string {
-  const value = $(`input[name="${name}"]`).first().attr("value");
-  return value ?? defaultValue;
-}
-
-async function parseLoginForm(client: AxiosInstance): Promise<LoginForm> {
+async function parseLoginForm(api: TronClass): Promise<LoginForm> {
   const loginUrl = getLoginUrl();
-  const response = await client.get<string>(loginUrl, { responseType: "text" });
-  const finalUrl = getResponseUrl(response, loginUrl);
-  const $ = cheerio.load(response.data);
+  const response = await api.call(loginUrl);
+  const finalUrl = response.url;
+  const html = await response.text();
 
-  const captchaSrc = $("img")
-    .toArray()
-    .map((element) => $(element).attr("src") ?? "")
-    .find((src) => src.toLowerCase().includes("captcha")) ?? "";
+  const captchaRegex = /<img[^>]*src=["']([^"']*captcha[^"']*)["']/i;
+  const captchaMatch = html.match(captchaRegex);
+  const captchaSrc = captchaMatch ? captchaMatch[1] : "";
 
-  const captchaUrl = captchaSrc ? new URL(captchaSrc, finalUrl).toString() : "";
+  const captchaUrlStr = captchaSrc ? new URL(captchaSrc, finalUrl).toString() : "";
+  const captchaUrl = captchaUrlStr.replace(DEFAULT_BASE_URL, "");
 
   return {
-    submitUrl: finalUrl,
-    lt: extractInputValue($, "lt"),
-    execution: extractInputValue($, "execution"),
-    eventId: extractInputValue($, "_eventId", "submit"),
-    submitText: extractInputValue($, "submit"),
-    needsCaptcha: $('input[name="captcha"]').length > 0,
+    submitUrl: finalUrl.replace(DEFAULT_BASE_URL, ""),
+    lt: extractInputValue(html, "lt"),
+    execution: extractInputValue(html, "execution"),
+    eventId: extractInputValue(html, "_eventId", "submit"),
+    submitText: extractInputValue(html, "submit"),
+    needsCaptcha: /<input[^>]*name=["']captcha["']/i.test(html),
     captchaUrl,
   };
 }
 
-async function downloadCaptcha(client: AxiosInstance, captchaUrl: string): Promise<string> {
-  const response = await client.get<ArrayBuffer>(captchaUrl, { responseType: "arraybuffer" });
+async function downloadCaptcha(api: TronClass, captchaUrl: string): Promise<string> {
+  const response = await api.call(captchaUrl);
+  const arrayBuffer = await response.arrayBuffer();
   const filePath = path.join(os.tmpdir(), `tronclass-cli-captcha-${Date.now()}.jpg`);
-  await fs.writeFile(filePath, Buffer.from(response.data));
+  await fs.writeFile(filePath, Buffer.from(arrayBuffer));
   return filePath;
 }
 
@@ -136,29 +137,42 @@ async function promptCaptcha(): Promise<string> {
 }
 
 export async function runFjuAuth(username: string): Promise<void> {
+  const config = await loadConfig();
   const jar = await loadCookies();
-  const { client } = await createHttpClient(jar);
+  const api = new TronClass(DEFAULT_BASE_URL);
+  (api as any).auth.loggedIn = true;
+  
+  const sdkJar = (api as any).httpClient.jar;
+  const cookies = await jar.getCookies(DEFAULT_BASE_URL);
+  for (const cookie of cookies) {
+    await sdkJar.setCookie(cookie, DEFAULT_BASE_URL);
+  }
 
   // 嘗試使用現有 Cookie 造訪服務，檢查是否已經登入
-  try {
-    const checkResponse = await client.get<string>(getServiceUrl(), { responseType: "text" });
-    const finalUrl = getResponseUrl(checkResponse, getServiceUrl());
-    const body = checkResponse.data ?? "";
-    const cookies = await jar.getCookies(BASE_URL);
-    const hasSessionCookie = cookies.some((cookie) => cookie.key === "session");
-    const loginFailed = finalUrl.includes("/cas/login") || body.includes('name="execution"');
+  if (config.username === username && config.baseUrl === DEFAULT_BASE_URL) {
+    try {
+      const checkResponse = await api.call(SERVICE_PATH);
+      const finalUrl = checkResponse.url;
+      const body = await checkResponse.text();
+      const updatedCookies = await sdkJar.getCookies(DEFAULT_BASE_URL);
+      const hasSessionCookie = updatedCookies.some((cookie: any) => cookie.key === "session");
+      const loginFailed = finalUrl.includes("/cas/login") || body.includes('name="execution"');
 
-    if (!loginFailed && hasSessionCookie) {
-      console.log(`Already authenticated as ${username}. Session restored.`);
-      return;
+      if (!loginFailed && hasSessionCookie) {
+        console.log(`Already authenticated as ${username}. Session restored.`);
+        return;
+      }
+    } catch {
+      // 忽略錯誤，繼續進行正常的登入流程
     }
-  } catch {
-    // 忽略錯誤，繼續進行正常的登入流程
+  } else {
+    // If not matching user/school, clear the jar to avoid reusing old session
+    await sdkJar.removeAllCookies();
   }
 
   const password = await promptPassword();
 
-  const loginForm = await parseLoginForm(client);
+  const loginForm = await parseLoginForm(api);
   if (!loginForm.lt || !loginForm.execution) {
     throw new Error("Failed to parse FJU CAS login form.");
   }
@@ -176,7 +190,7 @@ export async function runFjuAuth(username: string): Promise<void> {
   if (loginForm.needsCaptcha) {
     if (loginForm.captchaUrl) {
       try {
-        const captchaFile = await downloadCaptcha(client, loginForm.captchaUrl);
+        const captchaFile = await downloadCaptcha(api, loginForm.captchaUrl);
         if (openFile(captchaFile)) {
           console.log(`Captcha image opened: ${captchaFile}`);
         } else {
@@ -191,24 +205,36 @@ export async function runFjuAuth(username: string): Promise<void> {
     formData.set("captcha", captcha);
   }
 
-  await client.post(loginForm.submitUrl, formData.toString(), {
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
+  await api.call(loginForm.submitUrl, {
+    method: "POST",
+    body: formData,
   });
 
-  const checkResponse = await client.get<string>(getServiceUrl(), { responseType: "text" });
-  const finalUrl = getResponseUrl(checkResponse, getServiceUrl());
-  const body = checkResponse.data ?? "";
+  const checkResponse = await api.call(SERVICE_PATH);
+  const finalUrl = checkResponse.url;
+  const html = await checkResponse.text();
 
-  const cookies = await jar.getCookies(BASE_URL);
-  const hasSessionCookie = cookies.some((cookie) => cookie.key === "session");
-  const loginFailed = finalUrl.includes("/cas/login") || body.includes('name="execution"');
+  const updatedCookies = await sdkJar.getCookies(DEFAULT_BASE_URL);
+  const hasSessionCookie = updatedCookies.some((cookie: any) => cookie.key === "session");
+  const loginFailed = finalUrl.includes("/cas/login") || html.includes('name="execution"');
 
   if (loginFailed || !hasSessionCookie) {
     throw new Error("Authentication failed. Please check username, password, and captcha.");
   }
 
-  await saveCookies(jar);
-  console.log(`Authenticated as ${username}. Session saved.`);
+  let studentId = "";
+  const match = html.match(/<input[^>]*id=["']userId["'][^>]*value=["']([^"']*)["']/i);
+  if (match) {
+    studentId = match[1];
+  }
+
+  await saveCookies(sdkJar);
+  await saveConfig({
+    username,
+    studentId,
+    baseUrl: DEFAULT_BASE_URL,
+    school: "fju"
+  });
+  
+  console.log(`Authenticated as ${username}${studentId ? ` (ID: ${studentId})` : ""}. Session saved.`);
 }

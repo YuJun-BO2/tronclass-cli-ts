@@ -5,7 +5,7 @@ import { getNestedValue } from "./utils";
  * Powered by Tronclass-API (SDK):
  * Copyright (c) 2026 Seven317 (MIT License)
  */
-export async function runTodo(fields: string[] = ["course_name", "title", "end_time"]): Promise<void> {
+export async function runTodo(fields: string[] = ["id", "course_name", "title", "end_time"]): Promise<void> {
   const { api } = await initApi();
 
   try {

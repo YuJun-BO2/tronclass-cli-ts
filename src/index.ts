@@ -145,9 +145,9 @@ async function main(): Promise<void> {
       } else if (subCommand === "download" || subCommand === "d" || subCommand === "dl") {
         const positionalArgs = cmdArgs.filter(arg => !arg.startsWith("-") && arg !== "--preview");
         const refId = positionalArgs[0];
-        const outFile = positionalArgs[1];
-        if (!refId || !outFile) {
-          console.error("Missing ref_id or output file.");
+        const outFile = positionalArgs[1]; // optional — defaults to ~/Downloads/<filename>
+        if (!refId) {
+          console.error("Missing ref_id.");
           printUsage();
           process.exit(1);
         }

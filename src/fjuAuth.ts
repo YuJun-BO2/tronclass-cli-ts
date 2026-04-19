@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -74,30 +75,51 @@ async function downloadCaptcha(api: TronClass, captchaUrl: string): Promise<stri
   return filePath;
 }
 
+// Resolve a command name to its full path via PATH, or return null if not found.
+// spawn() never throws synchronously for ENOENT — it emits an error event instead,
+// so we must check existence before spawning to get reliable true/false results.
+function resolveCommand(cmd: string): string | null {
+  const dirs = (process.env.PATH ?? "").split(path.delimiter);
+  for (const dir of dirs) {
+    const full = path.join(dir, cmd);
+    if (existsSync(full)) return full;
+  }
+  return null;
+}
+
 function openFile(filePath: string): boolean {
-  try {
-    if (process.platform === "win32") {
-      const child = spawn("cmd", ["/c", "start", "", filePath], {
-        detached: true,
-        stdio: "ignore",
-        windowsHide: true,
-      });
+  const tryOpen = (cmd: string, args: string[], opts: object = {}): boolean => {
+    const resolved = resolveCommand(cmd);
+    if (!resolved) return false;
+    try {
+      const child = spawn(resolved, args, { detached: true, stdio: "ignore", ...opts });
+      child.on("error", () => {}); // extra safety against late errors
       child.unref();
       return true;
+    } catch {
+      return false;
     }
+  };
 
-    if (process.platform === "darwin") {
-      const child = spawn("open", [filePath], { detached: true, stdio: "ignore" });
-      child.unref();
-      return true;
-    }
-
-    const child = spawn("xdg-open", [filePath], { detached: true, stdio: "ignore" });
+  if (process.platform === "win32") {
+    // cmd.exe is always available on Windows
+    const child = spawn("cmd", ["/c", "start", "", filePath], {
+      detached: true, stdio: "ignore", windowsHide: true,
+    });
+    child.on("error", () => {});
     child.unref();
     return true;
-  } catch {
-    return false;
   }
+  if (process.platform === "darwin") {
+    return tryOpen("open", [filePath]);
+  }
+  // Linux: try viewers in order (xdg-open absent in minimal/headless envs)
+  return (
+    tryOpen("xdg-open", [filePath]) ||
+    tryOpen("display",  [filePath]) ||
+    tryOpen("eog",      [filePath]) ||
+    tryOpen("feh",      [filePath])
+  );
 }
 
 async function promptPassword(): Promise<string> {
@@ -194,7 +216,8 @@ export async function runFjuAuth(username: string): Promise<void> {
         if (openFile(captchaFile)) {
           console.log(`Captcha image opened: ${captchaFile}`);
         } else {
-          console.log(`Captcha image saved: ${captchaFile}`);
+          console.log(`Captcha image saved to: ${captchaFile}`);
+          console.log(`No image viewer found. View the file manually, or run: base64 ${captchaFile}`);
         }
       } catch {
         console.log(`Captcha URL: ${loginForm.captchaUrl}`);

@@ -1,6 +1,6 @@
 {
   "name": "tronclass-cli",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "A modern, cross-platform TypeScript CLI for the TronClass learning management system.",
   "license": "Apache-2.0",
   "type": "commonjs",

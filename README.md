@@ -4,12 +4,13 @@ A modern, fast, and cross-platform command-line interface for the TronClass lear
 
 ## Features
 
-- **Robust Authentication**: Seamlessly handles FJU CAS login, including automatic session restoration and interactive CAPTCHA detection.
+- **Robust Authentication**: Seamlessly handles FJU CAS login, including automatic session restoration and interactive CAPTCHA detection. `auth check` shows session expiry and time remaining.
 - **Session Persistence**: Saves your login state securely at `~/.tronclass-cli/cookies.json`, so you stay logged in across sessions.
 - **Course Management**: List your ongoing or historical courses with customizable fields and filtering.
 - **To-Do List**: Quick access to your pending tasks, assignments, and upcoming deadlines.
 - **Course Activities**: Browse course modules, view detailed activity metadata, and download course materials.
 - **Homework Submission**: Submit multiple files to assignments directly from your terminal with support for draft mode.
+- **Announcements**: Browse school-wide and course-specific announcements with HTML rendered directly in the terminal — bold, hyperlinks, images, and lists all supported.
 - **Developer Friendly**: Built with TypeScript for type safety and easy maintainability.
 
 ## Installation
@@ -65,6 +66,15 @@ tronclass activities list <course_id>
 
 # Download course material
 tronclass activities download <ref_id> <output_path>
+
+# List school-wide announcements
+tronclass ann list
+
+# List announcements for a specific course
+tronclass ann list <course_id>
+
+# View full announcement content (HTML rendered in terminal)
+tronclass ann view <ann_id> [course_id]
 ```
 
 For more detailed usage, please refer to the [Documentation](./docs/index.md).
@@ -72,8 +82,9 @@ For more detailed usage, please refer to the [Documentation](./docs/index.md).
 ## Future Goals
 
 - Support for more universities beyond FJU.
+- Grades and exam score viewing.
+- Attendance / roll call submission.
 - Interactive course browsing mode.
-- Notification system for new assignments or announcements.
 - Integration with local file systems for automatic course material syncing.
 
 ## Acknowledgments

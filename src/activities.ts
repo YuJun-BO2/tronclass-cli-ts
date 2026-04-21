@@ -3,7 +3,7 @@ import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { initApi } from "./client";
-import { getNestedValue } from "./utils";
+import { getNestedValue, apiError } from "./utils";
 import { bold, red, grn, ylw, cyn, gry, hyperlink, renderKVTable, renderTable } from "./ui";
 
 /**
@@ -163,8 +163,8 @@ export async function runActivitiesList(
     });
 
     console.table(tableData);
-  } catch {
-    throw new Error(`Failed to fetch activities for course ${courseId}.`);
+  } catch (error) {
+    throw apiError(`Failed to fetch activities for course ${courseId}`, error);
   }
 }
 
@@ -177,8 +177,8 @@ export async function runActivitiesView(
   let activity: any;
   try {
     activity = await api.callJson<any>(`/api/activities/${activityId}`);
-  } catch {
-    throw new Error(`Failed to fetch activity ${activityId}.`);
+  } catch (error) {
+    throw apiError(`Failed to fetch activity ${activityId}`, error);
   }
 
   if (!activity) {

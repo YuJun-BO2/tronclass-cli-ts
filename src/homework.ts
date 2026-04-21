@@ -4,7 +4,7 @@ import * as path from "node:path";
 import * as mime from "mime-types";
 import { TronClass } from "tronclass-api";
 import { initApi } from "./client";
-import { unflattenFields, getNestedValue } from "./utils";
+import { unflattenFields, getNestedValue, apiError } from "./utils";
 import prompts from "prompts";
 
 /**
@@ -43,7 +43,7 @@ export async function runHomeworkList(
 
     console.table(tableData);
   } catch (error) {
-    throw new Error(`Failed to fetch homework for course ${courseId}.`);
+    throw apiError(`Failed to fetch homework for course ${courseId}`, error);
   }
 }
 

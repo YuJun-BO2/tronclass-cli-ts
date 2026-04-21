@@ -1,5 +1,5 @@
 import { initApi } from "./client";
-import { unflattenFields, getNestedValue } from "./utils";
+import { unflattenFields, getNestedValue, apiError } from "./utils";
 
 /**
  * The optimized API endpoint discovery and query logic are inspired by the Tronclass-API project.
@@ -20,7 +20,7 @@ export async function runCourseList(
   try {
     allCourses = await api.courses.getMyCourses(conditions);
   } catch (error) {
-    throw new Error("Failed to fetch courses from API.");
+    throw apiError("Failed to fetch courses", error);
   }
 
   if (!allCourses || allCourses.length === 0) {

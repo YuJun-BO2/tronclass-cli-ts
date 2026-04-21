@@ -1,5 +1,5 @@
 import { initApi } from "./client";
-import { getNestedValue } from "./utils";
+import { getNestedValue, apiError } from "./utils";
 
 /**
  * Powered by Tronclass-API (SDK):
@@ -28,7 +28,6 @@ export async function runTodo(fields: string[] = ["id", "course_name", "title", 
 
     console.table(tableData);
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to fetch to-do list. Your session might be expired. (${msg})`);
+    throw apiError("Failed to fetch to-do list", error);
   }
 }

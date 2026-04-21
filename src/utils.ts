@@ -26,6 +26,12 @@ export function unflattenFields(flattenFields: string[]): string {
   return visit(fields);
 }
 
+export function apiError(action: string, error: unknown): Error {
+  const msg = error instanceof Error ? error.message : String(error);
+  const hint = msg.includes("401") ? " Your session might be expired." : "";
+  return new Error(`${action}.${hint} (${msg})`);
+}
+
 export function getNestedValue(obj: any, path: string): any {
   const parts = path.split(".");
   let current: any = obj;

@@ -42,11 +42,28 @@ npm run dev -- auth login [--fju] <username>
 
 ### `check`
 
-Display the current authentication status, including the logged-in username, student ID, base URL, and whether session cookies are present.
+Display detailed authentication status in a formatted table, including login time, expiry, and time remaining.
 
 ```bash
 tronclass auth check
 ```
+
+Example output:
+
+```
+┌────────────┬─────────────────────────────┐
+│ Status     │ ● Valid                     │
+│ User       │ 412242266                   │
+│ Student ID │ 452378                      │
+│ Base URL   │ https://elearn2.fju.edu.tw  │
+│ School     │ fju                         │
+│ Login Time │ 2026/4/21 03:12:05          │
+│ Expires At │ 2026/4/22 03:12:06          │
+│ Remaining  │ 14 小時 30 分鐘             │
+└────────────┴─────────────────────────────┘
+```
+
+The **Remaining** field is color-coded: green (>24 h), yellow (<24 h), red (<1 h or expired). Sessions last 24 hours from login.
 
 ---
 

@@ -50,6 +50,28 @@ export async function saveCookies(jar: CookieJar): Promise<void> {
   await fs.writeFile(COOKIE_FILE, JSON.stringify(json, null, 2), "utf-8");
 }
 
+export interface SessionInfo {
+  loginTime: Date | null;
+  expiresAt: Date | null;
+}
+
+export async function getSessionInfo(baseUrl: string): Promise<SessionInfo> {
+  const jar = await loadCookies();
+  const cookies = await jar.getCookies(baseUrl);
+  const sessionCookie = cookies.find((c) => c.key === "session");
+
+  if (!sessionCookie) return { loginTime: null, expiresAt: null };
+
+  const loginTime = sessionCookie.creation instanceof Date ? sessionCookie.creation : null;
+
+  // Token format: V2-1-<uuid>.<base64_userId>.<expiry_ms>.<signature>
+  const parts = sessionCookie.value.split(".");
+  const expiryMs = parts.length >= 3 ? Number(parts[2]) : NaN;
+  const expiresAt = Number.isFinite(expiryMs) ? new Date(expiryMs) : null;
+
+  return { loginTime, expiresAt };
+}
+
 export async function clearAuth(): Promise<void> {
   await fs.rm(COOKIE_FILE, { force: true }).catch(() => {});
   await fs.rm(CONFIG_FILE, { force: true }).catch(() => {});

@@ -5,7 +5,7 @@ export const red  = (s: string) => `\x1b[31m${s}\x1b[0m`;
 export const grn  = (s: string) => `\x1b[32m${s}\x1b[0m`;
 export const ylw  = (s: string) => `\x1b[33m${s}\x1b[0m`;
 export const cyn  = (s: string) => `\x1b[36m${s}\x1b[0m`;
-export const gry  = (s: string) => `\x1b[90m${s}\x1b[0m`;
+export const gry  = (s: string) => `\x1b[37m${s}\x1b[0m`;
 
 // OSC 8 hyperlink — clickable in iTerm2, GNOME Terminal, Windows Terminal, etc.
 export function hyperlink(url: string, text: string): string {
@@ -66,8 +66,6 @@ export function renderKVTable(data: Record<string, string>): void {
     gry(`${l}${"─".repeat(keyW + 2)}${m}${"─".repeat(valW + 2)}${r}`);
 
   console.log(hr("┌", "┬", "┐"));
-  console.log(`${gry("│")} ${padEndV(gry("(index)"), keyW)} ${gry("│")} ${padEndV(gry("Values"), valW)} ${gry("│")}`);
-  console.log(hr("├", "┼", "┤"));
 
   for (const key of keys) {
     const rawVal   = data[key] ?? "";

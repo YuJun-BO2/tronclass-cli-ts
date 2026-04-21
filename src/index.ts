@@ -6,7 +6,8 @@ import { runTodo } from "./todo";
 import { runCourseList } from "./course";
 import { runActivitiesList, runActivitiesView, runActivitiesDownload } from "./activities";
 import { runHomeworkList, runHomeworkSubmit } from "./homework";
-import { loadConfig, clearAuth, loadCookies } from "./client";
+import { loadConfig, clearAuth, loadCookies, getSessionInfo } from "./client";
+import { bold, red, grn, ylw, gry, renderKVTable } from "./ui";
 
 function printUsage(): void {
   console.log("Usage:");
@@ -82,14 +83,42 @@ async function main(): Promise<void> {
         const jar = await loadCookies();
         const cookies = await jar.getCookies(config.baseUrl);
 
-        if (cookies.length > 0 && config.username) {
-          console.log(`Authenticated as: ${config.username}`);
-          if (config.studentId) console.log(`Student ID: ${config.studentId}`);
-          console.log(`Base URL: ${config.baseUrl}`);
-          console.log(`School Config: ${config.school || "custom"}`);
-          console.log("Session cookies are present.");
-        } else {
+        if (cookies.length === 0 || !config.username) {
           console.log("Not authenticated.");
+        } else {
+          const { loginTime, expiresAt } = await getSessionInfo(config.baseUrl);
+          const now = Date.now();
+          const remainingMs = expiresAt ? expiresAt.getTime() - now : null;
+          const isValid = remainingMs !== null && remainingMs > 0;
+
+          function formatDate(d: Date | null): string {
+            if (!d) return gry("unknown");
+            return d.toLocaleString("zh-TW", { hour12: false });
+          }
+
+          function formatRemaining(ms: number | null): string {
+            if (ms === null) return gry("unknown");
+            if (ms <= 0) return red("已過期 (Expired)");
+            const h = Math.floor(ms / 3600000);
+            const m = Math.floor((ms % 3600000) / 60000);
+            const text = h > 0 ? `${h} 小時 ${m} 分鐘` : `${m} 分鐘`;
+            if (ms < 3600000) return red(text);
+            if (ms < 86400000) return ylw(text);
+            return grn(text);
+          }
+
+          const statusText = isValid ? grn("● Valid") : red("● Expired");
+
+          renderKVTable({
+            "Status":     statusText,
+            "User":       bold(config.username),
+            "Student ID": config.studentId ?? gry("unknown"),
+            "Base URL":   config.baseUrl,
+            "School":     config.school ?? "custom",
+            "Login Time": formatDate(loginTime),
+            "Expires At": formatDate(expiresAt),
+            "Remaining":  formatRemaining(remainingMs),
+          });
         }
       } else if (subCommand === "logout") {
         await clearAuth();

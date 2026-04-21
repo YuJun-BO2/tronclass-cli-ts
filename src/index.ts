@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 
-import { runFjuAuth } from "./fjuAuth";
-import { runApiAuth } from "./apiAuth";
+import { runFjuAuth } from "./lib/fjuAuth";
+import { runApiAuth } from "./lib/apiAuth";
 import { runTodo } from "./todo";
 import { runCourseList } from "./course";
 import { runActivitiesList, runActivitiesView, runActivitiesDownload } from "./activities";
 import { runHomeworkList, runHomeworkSubmit } from "./homework";
-import { loadConfig, clearAuth, loadCookies, getSessionInfo } from "./client";
-import { bold, red, grn, ylw, gry, renderKVTable } from "./ui";
+import { runAnnouncementsList, runAnnouncementsView } from "./announcements";
+import { loadConfig, clearAuth, loadCookies, getSessionInfo } from "./lib/client";
+import { bold, red, grn, ylw, gry, renderKVTable } from "./lib/ui";
 
 function printUsage(): void {
   console.log("Usage:");
@@ -21,6 +22,8 @@ function printUsage(): void {
   console.log("  tronclass activities download <ref_id> <out>  Download a file from an activity");
   console.log("  tronclass homework list <course_id>           List homework for a course");
   console.log("  tronclass homework submit <act_id> <files...> Submit files for homework");
+  console.log("  tronclass ann list [course_id]                List announcements");
+  console.log("  tronclass ann view <ann_id> [course_id]       View an announcement");
   console.log("    Options:");
   console.log("      --fields f1,f2...   Specify fields to display (for courses, todo, activities, homework)");
   console.log("      --all               Show all courses instead of only ongoing ones (for courses)");
@@ -217,6 +220,31 @@ async function main(): Promise<void> {
 
       } else {
         console.error(`Unknown homework sub-command: ${subCommand}`);
+        printUsage();
+        process.exit(1);
+      }
+
+    } else if (command === "announcements" || command === "ann") {
+      const subCommand = args[1];
+      const cmdArgs = args.slice(2);
+
+      if (subCommand === "list" || subCommand === "l" || subCommand === "ls") {
+        const courseId = cmdArgs.filter(a => !a.startsWith("-"))[0];
+        await runAnnouncementsList(courseId);
+
+      } else if (subCommand === "view" || subCommand === "v") {
+        const positional = cmdArgs.filter(a => !a.startsWith("-"));
+        const annId = positional[0];
+        const courseId = positional[1];
+        if (!annId) {
+          console.error("Missing ann_id.");
+          printUsage();
+          process.exit(1);
+        }
+        await runAnnouncementsView(annId, courseId);
+
+      } else {
+        console.error(`Unknown announcements sub-command: ${subCommand}`);
         printUsage();
         process.exit(1);
       }

@@ -24,14 +24,21 @@ export function dispWidth(s: string): number {
   let w = 0;
   for (const ch of stripAnsi(s)) {
     const cp = ch.codePointAt(0) ?? 0;
+    // Zero-width: ZWJ and variation selectors
+    if (cp === 0x200D || (cp >= 0xFE00 && cp <= 0xFE0F)) continue;
     const wide =
+      // CJK
       (cp >= 0x1100 && cp <= 0x115F) ||
       (cp >= 0x2E80 && cp <= 0x303E) ||
       (cp >= 0x3040 && cp <= 0xA4CF) ||
       (cp >= 0xAC00 && cp <= 0xD7AF) ||
       (cp >= 0xF900 && cp <= 0xFAFF) ||
       (cp >= 0xFF00 && cp <= 0xFF60) ||
-      (cp >= 0xFFE0 && cp <= 0xFFE6);
+      (cp >= 0xFFE0 && cp <= 0xFFE6) ||
+      // Misc symbols, dingbats (⛔ ✨ etc.)
+      (cp >= 0x2600 && cp <= 0x27BF) ||
+      // Emoji (😎 etc.)
+      (cp >= 0x1F000 && cp <= 0x1FAFF);
     w += wide ? 2 : 1;
   }
   return w;
@@ -55,12 +62,11 @@ export function wrapByWidth(text: string, maxW: number): string[] {
 
 // ── Table renderers ───────────────────────────────────────────────────────────
 
-// Two-column key/value table — fixed-width, wraps long plain-text values
 export function renderKVTable(data: Record<string, string>): void {
   const termW = Math.min(process.stdout.columns || 80, 120);
   const keys  = Object.keys(data);
-  const keyW  = Math.max(...keys.map((k) => k.length), 7); // min "(index)".length
-  const valW  = Math.max(20, termW - keyW - 7);            // 7 = │ + spaces + │ + spaces + │
+  const keyW  = Math.max(...keys.map((k) => dispWidth(k)), 7);
+  const valW  = Math.max(20, termW - keyW - 7);
 
   const hr = (l: string, m: string, r: string) =>
     gry(`${l}${"─".repeat(keyW + 2)}${m}${"─".repeat(valW + 2)}${r}`);
@@ -70,7 +76,6 @@ export function renderKVTable(data: Record<string, string>): void {
   for (const key of keys) {
     const rawVal   = data[key] ?? "";
     const rawPlain = stripAnsi(rawVal);
-    // Colored values are short — keep as-is. Plain text gets wrapped.
     const lines = rawVal !== rawPlain ? [rawVal] : wrapByWidth(rawPlain, valW);
     for (let i = 0; i < lines.length; i++) {
       const k = padEndV(i === 0 ? gry(key) : "", keyW);
@@ -87,7 +92,18 @@ export interface ColDef {
   width: number;
 }
 
-// Multi-column table — truncates cells that exceed column width
+function truncByWidth(s: string, maxW: number): string {
+  let w = 0;
+  let out = "";
+  for (const ch of s) {
+    const cw = dispWidth(ch);
+    if (w + cw > maxW - 1) return out + "…";
+    out += ch;
+    w += cw;
+  }
+  return s;
+}
+
 export function renderTable(rows: Record<string, string>[], cols: ColDef[]): void {
   const hr = (l: string, m: string, r: string) =>
     gry(l + cols.map((c) => "─".repeat(c.width + 2)).join(m) + r);
@@ -100,7 +116,7 @@ export function renderTable(rows: Record<string, string>[], cols: ColDef[]): voi
     const cells = cols.map((c) => {
       const val   = row[c.key] ?? "";
       const plain = stripAnsi(val);
-      const cell  = dispWidth(plain) > c.width ? val.slice(0, c.width - 1) + "…" : val;
+      const cell  = dispWidth(plain) > c.width ? truncByWidth(plain, c.width) : val;
       return padEndV(cell, c.width);
     });
     console.log(`${gry("│")} ${cells.join(` ${gry("│")} `)} ${gry("│")}`);

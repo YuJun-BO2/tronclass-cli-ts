@@ -3,8 +3,8 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as mime from "mime-types";
 import { TronClass } from "tronclass-api";
-import { initApi } from "./client";
-import { unflattenFields, getNestedValue, apiError } from "./utils";
+import { initApi } from "./lib/client";
+import { unflattenFields, getNestedValue, apiError } from "./lib/utils";
 import prompts from "prompts";
 
 /**

@@ -1,5 +1,5 @@
-import { initApi } from "./client";
-import { unflattenFields, getNestedValue, apiError } from "./utils";
+import { initApi } from "./lib/client";
+import { unflattenFields, getNestedValue, apiError } from "./lib/utils";
 
 /**
  * The optimized API endpoint discovery and query logic are inspired by the Tronclass-API project.

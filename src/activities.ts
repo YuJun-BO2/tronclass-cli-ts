@@ -2,9 +2,9 @@ import * as fs from "node:fs";
 import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { initApi } from "./client";
-import { getNestedValue, apiError } from "./utils";
-import { bold, red, grn, ylw, cyn, gry, hyperlink, renderKVTable, renderTable } from "./ui";
+import { initApi } from "./lib/client";
+import { getNestedValue, apiError } from "./lib/utils";
+import { bold, red, grn, ylw, cyn, gry, hyperlink, renderKVTable, renderTable } from "./lib/ui";
 
 /**
  * Powered by Tronclass-API (SDK):

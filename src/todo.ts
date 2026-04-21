@@ -1,5 +1,5 @@
-import { initApi } from "./client";
-import { getNestedValue, apiError } from "./utils";
+import { initApi } from "./lib/client";
+import { getNestedValue, apiError } from "./lib/utils";
 
 /**
  * Powered by Tronclass-API (SDK):

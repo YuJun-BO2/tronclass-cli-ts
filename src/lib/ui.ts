@@ -60,6 +60,81 @@ export function wrapByWidth(text: string, maxW: number): string[] {
   return lines.length ? lines : [""];
 }
 
+// ── ANSI-aware line wrapper ───────────────────────────────────────────────────
+// Wraps a single line at maxW columns. When a wrap falls inside a hyperlink or
+// colour span, the sequences are closed at the break and reopened on the next
+// line so every physical line is self-contained and clickable.
+
+function wrapAnsiLine(line: string, maxW: number): string[] {
+  if (dispWidth(stripAnsi(line)) <= maxW) return [line];
+
+  const result: string[] = [];
+  let cur = '', curW = 0;
+  let activeUrl: string | null = null;
+  let activeCsi: string | null = null;
+
+  const openState  = () => (activeCsi ?? '') + (activeUrl != null ? `\x1b]8;;${activeUrl}\x1b\\` : '');
+  const closeState = () => (activeUrl != null ? '\x1b]8;;\x1b\\' : '') + (activeCsi ? '\x1b[0m' : '');
+
+  let i = 0;
+  while (i < line.length) {
+    // CSI: \x1b[...m — colour / style (zero-width)
+    if (line[i] === '\x1b' && line[i + 1] === '[') {
+      const m = /^\x1b\[[0-9;]*m/.exec(line.slice(i));
+      if (m) {
+        activeCsi = (m[0] === '\x1b[0m' || m[0] === '\x1b[m') ? null : m[0];
+        cur += m[0];
+        i += m[0].length;
+        continue;
+      }
+    }
+    // OSC 8: \x1b]8;;<url>\x1b\ — hyperlink open (url) or close (empty)
+    if (line[i] === '\x1b' && line[i + 1] === ']' && line.slice(i + 2, i + 5) === '8;;') {
+      const end = line.indexOf('\x1b\\', i + 5);
+      if (end !== -1) {
+        activeUrl = line.slice(i + 5, end) || null;
+        cur += line.slice(i, end + 2);
+        i = end + 2;
+        continue;
+      }
+    }
+    // Visible character (handles surrogate pairs via codePointAt)
+    const ch = String.fromCodePoint(line.codePointAt(i) ?? 0);
+    const w  = dispWidth(ch);
+    if (curW + w > maxW && curW > 0) {
+      cur += closeState();
+      result.push(cur);
+      cur = openState();
+      curW = 0;
+    }
+    cur += ch;
+    curW += w;
+    i += ch.length;
+  }
+  if (cur) result.push(cur);
+  return result;
+}
+
+// ── Content box ───────────────────────────────────────────────────────────────
+
+export function renderContentBox(content: string): void {
+  const termW  = Math.min(process.stdout.columns || 80, 120);
+  const innerW = termW - 4; // "│ " + " │"
+
+  const lines: string[] = [];
+  for (const line of content.split("\n"))
+    lines.push(...wrapAnsiLine(line, innerW));
+
+  const hr = (l: string, r: string) => gry(`${l}${"─".repeat(innerW + 2)}${r}`);
+
+  console.log(hr("┌", "┐"));
+  for (const line of lines) {
+    const pad = " ".repeat(Math.max(0, innerW - dispWidth(stripAnsi(line))));
+    console.log(`${gry("│")} ${line}${pad} ${gry("│")}`);
+  }
+  console.log(hr("└", "┘"));
+}
+
 // ── Table renderers ───────────────────────────────────────────────────────────
 
 export function renderKVTable(data: Record<string, string>): void {

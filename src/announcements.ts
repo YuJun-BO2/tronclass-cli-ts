@@ -1,23 +1,8 @@
 import { initApi } from "./lib/client";
 import { apiError } from "./lib/utils";
-import { bold, gry, cyn, hyperlink, renderKVTable, renderTable, dispWidth } from "./lib/ui";
+import { bold, gry, cyn, hyperlink, renderKVTable, renderTable, dispWidth, renderContentBox } from "./lib/ui";
 import { renderHtml } from "./lib/html";
-
-async function fetchUploadUrl(api: any, upload: any): Promise<string | null> {
-  if (typeof upload.url === "string" && upload.url.startsWith("http")) return upload.url;
-  const refId = upload.id ?? upload.reference_id;
-  if (refId == null) return null;
-  for (const ep of [
-    `/api/uploads/reference/document/${refId}/url?preview=false`,
-    `/api/uploads/${refId}/url`,
-  ]) {
-    try {
-      const res = await (api.callJson(ep) as Promise<{ url: string }>);
-      if (res?.url) return res.url as string;
-    } catch { /* try next */ }
-  }
-  return null;
-}
+import { fetchUploadUrl } from "./lib/download";
 
 const DATE_COL_W = 20;
 const AUTHOR_COL_W = 12;
@@ -106,7 +91,7 @@ export async function runAnnouncementsView(annId: string, courseId?: string): Pr
 
   if (ann.content) {
     console.log();
-    console.log(renderHtml(ann.content));
+    renderContentBox(renderHtml(ann.content));
   }
 
   const uploads: any[] = Array.isArray(ann.uploads) ? ann.uploads : [];
@@ -115,10 +100,11 @@ export async function runAnnouncementsView(annId: string, courseId?: string): Pr
     console.log(bold(`Attachments`) + gry(` (${uploads.length} files)`));
     const downloadUrls = await Promise.all(uploads.map((u) => fetchUploadUrl(api, u)));
     uploads.forEach((u, i) => {
+      const refId = u.id ?? u.reference_id ?? i;
       const name = u.filename ?? u.name ?? u.original_filename ?? "unknown";
       const dlUrl = downloadUrls[i];
       const display = dlUrl ? hyperlink(dlUrl, cyn(name)) : name;
-      console.log(`  ${gry(String(i))}  ${display}`);
+      console.log(`  ${gry(String(refId))}  ${display}`);
     });
   }
 }

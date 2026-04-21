@@ -4,7 +4,8 @@ import { runFjuAuth } from "./lib/fjuAuth";
 import { runApiAuth } from "./lib/apiAuth";
 import { runTodo } from "./todo";
 import { runCourseList } from "./course";
-import { runActivitiesList, runActivitiesView, runActivitiesDownload } from "./activities";
+import { runActivitiesList, runActivitiesView } from "./activities";
+import { runDownload } from "./lib/download";
 import { runHomeworkList, runHomeworkSubmit } from "./homework";
 import { runAnnouncementsList, runAnnouncementsView } from "./announcements";
 import { loadConfig, clearAuth, loadCookies, getSessionInfo } from "./lib/client";
@@ -24,6 +25,7 @@ function printUsage(): void {
   console.log("  tronclass homework submit <act_id> <files...> Submit files for homework");
   console.log("  tronclass ann list [course_id]                List announcements");
   console.log("  tronclass ann view <ann_id> [course_id]       View an announcement");
+  console.log("  tronclass ann download <ref_id> [out]         Download an announcement attachment");
   console.log("    Options:");
   console.log("      --fields f1,f2...   Specify fields to display (for courses, todo, activities, homework)");
   console.log("      --all               Show all courses instead of only ongoing ones (for courses)");
@@ -184,7 +186,7 @@ async function main(): Promise<void> {
           process.exit(1);
         }
         const preview = hasFlag(cmdArgs, "--preview");
-        await runActivitiesDownload(refId, outFile, preview);
+        await runDownload(refId, outFile, preview);
 
       } else {
         console.error(`Unknown activities sub-command: ${subCommand}`);
@@ -242,6 +244,17 @@ async function main(): Promise<void> {
           process.exit(1);
         }
         await runAnnouncementsView(annId, courseId);
+
+      } else if (subCommand === "download" || subCommand === "d" || subCommand === "dl") {
+        const positional = cmdArgs.filter(a => !a.startsWith("-"));
+        const refId = positional[0];
+        const outFile = positional[1];
+        if (!refId) {
+          console.error("Missing ref_id.");
+          printUsage();
+          process.exit(1);
+        }
+        await runDownload(refId, outFile);
 
       } else {
         console.error(`Unknown announcements sub-command: ${subCommand}`);

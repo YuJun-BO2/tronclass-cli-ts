@@ -92,6 +92,47 @@ export interface ColDef {
   width: number;
 }
 
+// Converts a raw field name to a human-readable column label.
+// "end_time" → "End Time", "instructors.name" → "Instructors", "id" → "ID"
+export function humanizeField(field: string): string {
+  const part   = field.split(".")[0];
+  const spaced = part.replace(/_/g, " ");
+  const titled = spaced.replace(/\b\w/g, c => c.toUpperCase());
+  if (titled === "Id") return "ID";
+  return titled;
+}
+
+// Auto-sizes columns from content, fits to terminal width, then renders.
+// labels defaults to fields when omitted.
+export function autoRenderTable(
+  rows: Record<string, string>[],
+  fields: string[],
+  labels: string[] = fields,
+): void {
+  if (!rows.length) return;
+
+  const termW   = Math.min(process.stdout.columns || 80, 160);
+  const overhead = 1 + fields.length * 3; // │ + (space val space │) per col
+
+  // Natural width: max(header, widest cell), capped at 40
+  const widths = fields.map((f, i) => {
+    const hW = dispWidth(labels[i] ?? f);
+    const cW = rows.reduce((m, r) => Math.max(m, dispWidth(stripAnsi(String(r[f] ?? "")))), 0);
+    return Math.min(Math.max(hW, cW), 40);
+  });
+
+  // Shrink the widest column one unit at a time until it fits
+  let total = overhead + widths.reduce((a, b) => a + b, 0);
+  while (total > termW) {
+    const max = Math.max(...widths);
+    if (max <= 4) break;
+    widths[widths.lastIndexOf(max)]--;
+    total--;
+  }
+
+  renderTable(rows, fields.map((f, i) => ({ key: f, label: labels[i] ?? f, width: widths[i] })));
+}
+
 function truncByWidth(s: string, maxW: number): string {
   let w = 0;
   let out = "";

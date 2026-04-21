@@ -46,10 +46,10 @@ export async function runAnnouncementsList(courseId?: string): Promise<void> {
       date:   formatDate(a.created_at),
     })),
     [
-      { key: "id",     label: "id",     width: 10 },
-      { key: "title",  label: "title",  width: titleW },
-      { key: "author", label: "author", width: AUTHOR_COL_W },
-      { key: "date",   label: "date",   width: DATE_COL_W },
+      { key: "id",     label: "ID",     width: 10 },
+      { key: "title",  label: "Title",  width: titleW },
+      { key: "author", label: "Author", width: AUTHOR_COL_W },
+      { key: "date",   label: "Date",   width: DATE_COL_W },
     ],
   );
 }

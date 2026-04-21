@@ -4,7 +4,15 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { initApi } from "./lib/client";
 import { getNestedValue, apiError } from "./lib/utils";
-import { bold, red, grn, ylw, cyn, gry, hyperlink, renderKVTable, renderTable } from "./lib/ui";
+import { bold, red, grn, ylw, cyn, gry, hyperlink, renderKVTable, renderTable, autoRenderTable } from "./lib/ui";
+
+const LABELS: Record<string, string> = {
+  id:       "ID",
+  title:    "Title",
+  type:     "Type",
+  status:   "Status",
+  end_time: "Due",
+};
 
 /**
  * Powered by Tronclass-API (SDK):
@@ -155,22 +163,22 @@ export async function runActivitiesList(
     }
 
     const tableData = activities.map((activity: any) => {
-      const row: Record<string, any> = {};
+      const row: Record<string, string> = {};
       for (const field of fields) {
         if (field === "status") {
-          if (activity.is_closed)            row[field] = "已結束 (Closed)";
-          else if (activity.is_in_progress)  row[field] = "進行中 (In Progress)";
-          else if (activity.is_started === false) row[field] = "未開放 (Not Opened)";
-          else                               row[field] = "N/A";
+          if (activity.is_closed)                 row[field] = "已結束 (Closed)";
+          else if (activity.is_in_progress)        row[field] = "進行中 (In Progress)";
+          else if (activity.is_started === false)  row[field] = "未開放 (Not Opened)";
+          else                                     row[field] = "N/A";
         } else {
           const val = getNestedValue(activity, field);
-          row[field] = val != null && val !== "" ? val : "N/A";
+          row[field] = val != null && val !== "" ? String(val) : "N/A";
         }
       }
       return row;
     });
 
-    console.table(tableData);
+    autoRenderTable(tableData, fields, fields.map(f => LABELS[f] ?? f));
   } catch (error) {
     throw apiError(`Failed to fetch activities for course ${courseId}`, error);
   }

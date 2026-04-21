@@ -5,6 +5,15 @@ import * as mime from "mime-types";
 import { TronClass } from "tronclass-api";
 import { initApi } from "./lib/client";
 import { unflattenFields, getNestedValue, apiError } from "./lib/utils";
+import { autoRenderTable } from "./lib/ui";
+
+const LABELS: Record<string, string> = {
+  id:       "ID",
+  title:    "Title",
+  deadline: "Deadline",
+  status:   "Status",
+  score:    "Score",
+};
 import prompts from "prompts";
 
 /**
@@ -27,21 +36,21 @@ export async function runHomeworkList(
     }
 
     const tableData = allHomework.map((hw: any) => {
-      const row: Record<string, any> = {};
+      const row: Record<string, string> = {};
       for (const field of fields) {
         if (field === "status") {
-          if (hw.submitted) row[field] = "已繳交 (Submitted)";
+          if (hw.submitted)       row[field] = "已繳交 (Submitted)";
           else if (!hw.is_closed) row[field] = "待繳交 (To Submit)";
-          else row[field] = "未繳 (Overdue)";
+          else                    row[field] = "未繳 (Overdue)";
         } else {
           const val = getNestedValue(hw, field);
-          row[field] = val != null && val !== "" ? val : "N/A";
+          row[field] = val != null && val !== "" ? String(val) : "N/A";
         }
       }
       return row;
     });
 
-    console.table(tableData);
+    autoRenderTable(tableData, fields, fields.map(f => LABELS[f] ?? f));
   } catch (error) {
     throw apiError(`Failed to fetch homework for course ${courseId}`, error);
   }

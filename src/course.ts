@@ -1,5 +1,14 @@
 import { initApi } from "./lib/client";
 import { unflattenFields, getNestedValue, apiError } from "./lib/utils";
+import { autoRenderTable } from "./lib/ui";
+
+const LABELS: Record<string, string> = {
+  id:                "ID",
+  name:              "Name",
+  "instructors.name": "Instructors",
+  start_date:        "Start",
+  end_date:          "End",
+};
 
 /**
  * The optimized API endpoint discovery and query logic are inspired by the Tronclass-API project.
@@ -34,13 +43,13 @@ export async function runCourseList(
   }
 
   const tableData = allCourses.map((course) => {
-    const row: Record<string, any> = {};
+    const row: Record<string, string> = {};
     for (const field of fields) {
       const val = getNestedValue(course, field);
-      row[field] = val != null && val !== "" ? val : "N/A";
+      row[field] = val != null && val !== "" ? String(val) : "N/A";
     }
     return row;
   });
 
-  console.table(tableData);
+  autoRenderTable(tableData, fields, fields.map(f => LABELS[f] ?? f));
 }

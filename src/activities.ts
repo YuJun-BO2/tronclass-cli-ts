@@ -69,7 +69,15 @@ function filenameFromResponse(response: Response, referenceId: string): string {
   const star  = disposition.match(/filename\*\s*=\s*UTF-8''([^;\n]+)/i);
   if (star)  return decodeURIComponent(star[1].trim());
   const plain = disposition.match(/filename\s*=\s*["']?([^"';\n]+)["']?/i);
-  if (plain) return plain[1].trim();
+  if (plain) {
+    const raw = plain[1].trim();
+    // Server sends raw UTF-8 bytes in a Latin-1 header field; re-decode them.
+    if (/[^\x00-\x7F]/.test(raw)) {
+      const redecoded = Buffer.from(raw, "latin1").toString("utf8");
+      if (!redecoded.includes("\uFFFD")) return redecoded;
+    }
+    return raw;
+  }
   return `download_${referenceId}`;
 }
 

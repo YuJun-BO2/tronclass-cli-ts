@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { runFjuAuth } from "./lib/fjuAuth";
+import { runFjuAuth, resumeFjuAuthWithCaptcha } from "./lib/fjuAuth";
 import { runApiAuth } from "./lib/apiAuth";
 import { runTodo } from "./todo";
 import { runCourseList } from "./course";
@@ -13,7 +13,9 @@ import { bold, red, grn, ylw, gry, renderKVTable } from "./lib/ui";
 
 function printUsage(): void {
   console.log("Usage:");
-  console.log("  tronclass auth login [--fju] <username>       Login to TronClass");
+  console.log("  tronclass auth login [--fju] [--password <p>] [--base-url <u>] <username>");
+  console.log("                                                Login to TronClass");
+  console.log("  tronclass auth captcha <id> <code>            Complete a pending login with a captcha");
   console.log("  tronclass auth check                          Check current authentication status");
   console.log("  tronclass auth logout                         Clear saved session");
   console.log("  tronclass todo [--fields f1,f2...]            View your to-do list");
@@ -33,6 +35,8 @@ function printUsage(): void {
   console.log("      --preview           Download preview instead of original file (for activities download)");
   console.log("      --draft             Submit homework as a draft (for homework submit)");
   console.log("      --fju               Use FJU-specific login flow handling interactive captchas");
+  console.log("      --password <p>      Supply password non-interactively (for auth login)");
+  console.log("      --base-url <u>      Supply TronClass base URL non-interactively (for auth login)");
 }
 
 function parseFields(args: string[]): string[] | undefined {
@@ -53,6 +57,30 @@ function hasFlag(args: string[], flag: string): boolean {
   return args.includes(flag);
 }
 
+function parseFlagValue(args: string[], flag: string): string | undefined {
+  const idx = args.indexOf(flag);
+  if (idx === -1) return undefined;
+  const value = args[idx + 1];
+  if (value === undefined) {
+    throw new Error(`Option ${flag} requires a value.`);
+  }
+  return value;
+}
+
+function filterPositional(args: string[], valueFlags: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (valueFlags.includes(a)) {
+      i++; // skip value
+      continue;
+    }
+    if (a.startsWith("-")) continue;
+    out.push(a);
+  }
+  return out;
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
@@ -68,8 +96,11 @@ async function main(): Promise<void> {
       const subCommand = args[1];
 
       if (subCommand === "login") {
-        const isFju = hasFlag(args, "--fju");
-        const positionalArgs = args.slice(2).filter(arg => !arg.startsWith("-"));
+        const loginArgs = args.slice(2);
+        const isFju = hasFlag(loginArgs, "--fju");
+        const password = parseFlagValue(loginArgs, "--password");
+        const baseUrl = parseFlagValue(loginArgs, "--base-url");
+        const positionalArgs = filterPositional(loginArgs, ["--password", "--base-url"]);
         const username = positionalArgs[0];
 
         if (!username) {
@@ -79,10 +110,23 @@ async function main(): Promise<void> {
         }
 
         if (isFju) {
-          await runFjuAuth(username);
+          if (baseUrl) {
+            console.error("--base-url is not supported with --fju (FJU flow uses a fixed base URL).");
+            process.exit(1);
+          }
+          await runFjuAuth(username, { password });
         } else {
-          await runApiAuth(username);
+          await runApiAuth(username, { password, baseUrl });
         }
+      } else if (subCommand === "captcha") {
+        const positional = args.slice(2).filter(a => !a.startsWith("-"));
+        const id = positional[0];
+        const code = positional[1];
+        if (!id || !code) {
+          console.error("Usage: tronclass auth captcha <id> <code>");
+          process.exit(1);
+        }
+        await resumeFjuAuthWithCaptcha(id, code);
       } else if (subCommand === "check") {
         const config = await loadConfig();
         const jar = await loadCookies();

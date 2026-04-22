@@ -1,11 +1,24 @@
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import prompts from "prompts";
+import { CookieJar } from "tough-cookie";
 import { TronClass } from "tronclass-api";
-import { DEFAULT_BASE_URL, loadConfig, saveConfig, loadCookies, saveCookies } from "./client";
+import {
+  DEFAULT_BASE_URL,
+  loadConfig,
+  saveConfig,
+  loadCookies,
+  saveCookies,
+  savePendingCaptcha,
+  loadPendingCaptcha,
+  deletePendingCaptcha,
+  cleanupStalePendingCaptchas,
+  type PendingCaptcha,
+} from "./client";
 
 const SERVICE_PATH = "/login?next=/user/index";
 
@@ -158,81 +171,16 @@ async function promptCaptcha(): Promise<string> {
   return response.captcha as string;
 }
 
-export async function runFjuAuth(username: string): Promise<void> {
-  const config = await loadConfig();
-  const jar = await loadCookies();
-  const api = new TronClass(DEFAULT_BASE_URL);
-  (api as any).auth.loggedIn = true;
-  
-  const sdkJar = (api as any).httpClient.jar;
-  const cookies = await jar.getCookies(DEFAULT_BASE_URL);
-  for (const cookie of cookies) {
-    await sdkJar.setCookie(cookie, DEFAULT_BASE_URL);
-  }
+export interface FjuAuthOptions {
+  password?: string;
+  nonInteractive?: boolean;
+}
 
-  // 嘗試使用現有 Cookie 造訪服務，檢查是否已經登入
-  if (config.username === username && config.baseUrl === DEFAULT_BASE_URL) {
-    try {
-      const checkResponse = await api.call(SERVICE_PATH);
-      const finalUrl = checkResponse.url;
-      const body = await checkResponse.text();
-      const updatedCookies = await sdkJar.getCookies(DEFAULT_BASE_URL);
-      const hasSessionCookie = updatedCookies.some((cookie: any) => cookie.key === "session");
-      const loginFailed = finalUrl.includes("/cas/login") || body.includes('name="execution"');
+function generateCaptchaId(): string {
+  return randomBytes(6).toString("hex");
+}
 
-      if (!loginFailed && hasSessionCookie) {
-        console.log(`Already authenticated as ${username}. Session restored.`);
-        return;
-      }
-    } catch {
-      // 忽略錯誤，繼續進行正常的登入流程
-    }
-  } else {
-    // If not matching user/school, clear the jar to avoid reusing old session
-    await sdkJar.removeAllCookies();
-  }
-
-  const password = await promptPassword();
-
-  const loginForm = await parseLoginForm(api);
-  if (!loginForm.lt || !loginForm.execution) {
-    throw new Error("Failed to parse FJU CAS login form.");
-  }
-
-  const formData = new URLSearchParams();
-  formData.set("username", username);
-  formData.set("password", password);
-  formData.set("lt", loginForm.lt);
-  formData.set("execution", loginForm.execution);
-  formData.set("_eventId", loginForm.eventId || "submit");
-  if (loginForm.submitText) {
-    formData.set("submit", loginForm.submitText);
-  }
-
-  if (loginForm.needsCaptcha) {
-    if (loginForm.captchaUrl) {
-      try {
-        const captchaFile = await downloadCaptcha(api, loginForm.captchaUrl);
-        if (openFile(captchaFile)) {
-          console.log(`Captcha image opened: ${captchaFile}`);
-        } else {
-          console.log(`Captcha image saved to: ${captchaFile}`);
-          console.log(`No image viewer found. View the file manually, or run: base64 ${captchaFile}`);
-        }
-      } catch {
-        console.log(`Captcha URL: ${loginForm.captchaUrl}`);
-      }
-    }
-
-    const captcha = await promptCaptcha();
-    formData.set("captcha", captcha);
-  }
-
-  await api.call(loginForm.submitUrl, {
-    method: "POST",
-    body: formData,
-  });
-
+async function finalizeFjuLogin(api: TronClass, sdkJar: CookieJar, username: string): Promise<void> {
   const checkResponse = await api.call(SERVICE_PATH);
   const finalUrl = checkResponse.url;
   const html = await checkResponse.text();
@@ -256,8 +204,177 @@ export async function runFjuAuth(username: string): Promise<void> {
     username,
     studentId,
     baseUrl: DEFAULT_BASE_URL,
-    school: "fju"
+    school: "fju",
   });
-  
+
   console.log(`Authenticated as ${username}${studentId ? ` (ID: ${studentId})` : ""}. Session saved.`);
+}
+
+export async function runFjuAuth(username: string, options: FjuAuthOptions = {}): Promise<void> {
+  const nonInteractive = options.nonInteractive ?? options.password !== undefined;
+
+  const config = await loadConfig();
+  const jar = await loadCookies();
+  const api = new TronClass(DEFAULT_BASE_URL);
+  (api as any).auth.loggedIn = true;
+
+  const sdkJar: CookieJar = (api as any).httpClient.jar;
+  const cookies = await jar.getCookies(DEFAULT_BASE_URL);
+  for (const cookie of cookies) {
+    await sdkJar.setCookie(cookie, DEFAULT_BASE_URL);
+  }
+
+  // Try existing cookies first — may already be authenticated
+  if (config.username === username && config.baseUrl === DEFAULT_BASE_URL) {
+    try {
+      const checkResponse = await api.call(SERVICE_PATH);
+      const finalUrl = checkResponse.url;
+      const body = await checkResponse.text();
+      const updatedCookies = await sdkJar.getCookies(DEFAULT_BASE_URL);
+      const hasSessionCookie = updatedCookies.some((cookie: any) => cookie.key === "session");
+      const loginFailed = finalUrl.includes("/cas/login") || body.includes('name="execution"');
+
+      if (!loginFailed && hasSessionCookie) {
+        console.log(`Already authenticated as ${username}. Session restored.`);
+        return;
+      }
+    } catch {
+      // ignore, fall through to fresh login
+    }
+  } else {
+    await sdkJar.removeAllCookies();
+  }
+
+  const password = options.password ?? (await promptPassword());
+
+  const loginForm = await parseLoginForm(api);
+  if (!loginForm.lt || !loginForm.execution) {
+    throw new Error("Failed to parse FJU CAS login form.");
+  }
+
+  const formData = new URLSearchParams();
+  formData.set("username", username);
+  formData.set("password", password);
+  formData.set("lt", loginForm.lt);
+  formData.set("execution", loginForm.execution);
+  formData.set("_eventId", loginForm.eventId || "submit");
+  if (loginForm.submitText) {
+    formData.set("submit", loginForm.submitText);
+  }
+
+  if (loginForm.needsCaptcha) {
+    let imagePath = "";
+    if (loginForm.captchaUrl) {
+      try {
+        imagePath = await downloadCaptcha(api, loginForm.captchaUrl);
+      } catch {
+        // fall through — we'll report missing image below
+      }
+    }
+
+    if (nonInteractive) {
+      await cleanupStalePendingCaptchas();
+      const id = generateCaptchaId();
+      const state: PendingCaptcha = {
+        id,
+        school: "fju",
+        baseUrl: DEFAULT_BASE_URL,
+        username,
+        password,
+        submitUrl: loginForm.submitUrl,
+        lt: loginForm.lt,
+        execution: loginForm.execution,
+        eventId: loginForm.eventId || "submit",
+        submitText: loginForm.submitText,
+        cookies: sdkJar.toJSON(),
+        imagePath,
+        createdAt: Date.now(),
+      };
+      await savePendingCaptcha(state);
+
+      console.log("Captcha required to complete login.");
+      if (imagePath) {
+        if (openFile(imagePath)) {
+          console.log(`Captcha image opened: ${imagePath}`);
+        } else {
+          console.log(`Captcha image saved to: ${imagePath}`);
+          console.log(`(View it manually, or run: base64 ${imagePath})`);
+        }
+      } else if (loginForm.captchaUrl) {
+        console.log(`Captcha URL: ${loginForm.captchaUrl}`);
+      }
+      console.log("");
+      console.log(`Captcha ID: ${id}`);
+      console.log(`To complete login, run:`);
+      console.log(`  tronclass auth captcha ${id} <code>`);
+      return;
+    }
+
+    if (imagePath) {
+      if (openFile(imagePath)) {
+        console.log(`Captcha image opened: ${imagePath}`);
+      } else {
+        console.log(`Captcha image saved to: ${imagePath}`);
+        console.log(`No image viewer found. View the file manually, or run: base64 ${imagePath}`);
+      }
+    } else if (loginForm.captchaUrl) {
+      console.log(`Captcha URL: ${loginForm.captchaUrl}`);
+    }
+
+    const captcha = await promptCaptcha();
+    formData.set("captcha", captcha);
+  }
+
+  await api.call(loginForm.submitUrl, {
+    method: "POST",
+    body: formData,
+  });
+
+  await finalizeFjuLogin(api, sdkJar, username);
+}
+
+export async function resumeFjuAuthWithCaptcha(id: string, code: string): Promise<void> {
+  if (!code) {
+    throw new Error("Missing captcha code.");
+  }
+
+  const state = await loadPendingCaptcha(id);
+  if (state.school !== "fju") {
+    throw new Error(`Captcha '${id}' is not an FJU login session.`);
+  }
+
+  const api = new TronClass(state.baseUrl);
+  (api as any).auth.loggedIn = true;
+  const sdkJar: CookieJar = (api as any).httpClient.jar;
+
+  const restoredJar = CookieJar.fromJSON(JSON.stringify(state.cookies));
+  const cookies = await restoredJar.getCookies(state.baseUrl);
+  for (const cookie of cookies) {
+    await sdkJar.setCookie(cookie, state.baseUrl);
+  }
+
+  const formData = new URLSearchParams();
+  formData.set("username", state.username);
+  formData.set("password", state.password);
+  formData.set("lt", state.lt);
+  formData.set("execution", state.execution);
+  formData.set("_eventId", state.eventId);
+  if (state.submitText) {
+    formData.set("submit", state.submitText);
+  }
+  formData.set("captcha", code);
+
+  await api.call(state.submitUrl, {
+    method: "POST",
+    body: formData,
+  });
+
+  try {
+    await finalizeFjuLogin(api, sdkJar, state.username);
+  } finally {
+    await deletePendingCaptcha(id).catch(() => {});
+    if (state.imagePath) {
+      await fs.rm(state.imagePath, { force: true }).catch(() => {});
+    }
+  }
 }

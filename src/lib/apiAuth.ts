@@ -2,35 +2,50 @@ import prompts from "prompts";
 import { TronClass } from "tronclass-api";
 import { saveConfig, saveCookies } from "./client";
 
-export async function runApiAuth(username: string): Promise<void> {
-  const { baseUrl } = await prompts({
-    type: "text",
-    name: "baseUrl",
-    message: "Enter your school's TronClass Base URL (e.g. https://elearn2.fju.edu.tw)",
-    validate: (val: string) => val.startsWith("http") ? true : "Must be a valid URL starting with http:// or https://"
-  });
+export interface ApiAuthOptions {
+  baseUrl?: string;
+  password?: string;
+}
 
+export async function runApiAuth(username: string, options: ApiAuthOptions = {}): Promise<void> {
+  let baseUrl = options.baseUrl;
   if (!baseUrl) {
-    throw new Error("Input cancelled.");
+    const resp = await prompts({
+      type: "text",
+      name: "baseUrl",
+      message: "Enter your school's TronClass Base URL (e.g. https://elearn2.fju.edu.tw)",
+      validate: (val: string) => val.startsWith("http") ? true : "Must be a valid URL starting with http:// or https://",
+    });
+    baseUrl = resp.baseUrl as string | undefined;
+    if (!baseUrl) {
+      throw new Error("Input cancelled.");
+    }
   }
 
-  const { password } = await prompts({
-    type: "password",
-    name: "password",
-    message: "Password",
-    validate: (val: string) => val ? true : "Password is required"
-  });
+  if (!/^https?:\/\//.test(baseUrl)) {
+    throw new Error("--base-url must start with http:// or https://");
+  }
 
+  let password = options.password;
   if (!password) {
-    throw new Error("Input cancelled.");
+    const resp = await prompts({
+      type: "password",
+      name: "password",
+      message: "Password",
+      validate: (val: string) => val ? true : "Password is required",
+    });
+    password = resp.password as string | undefined;
+    if (!password) {
+      throw new Error("Input cancelled.");
+    }
   }
 
   console.log(`Logging in via SDK to ${baseUrl}...`);
   const api = new TronClass(baseUrl);
-  
+
   try {
     const response = await api.login({ username, password });
-    
+
     if (!response.success) {
       throw new Error(`Authentication failed: ${response.message}`);
     }

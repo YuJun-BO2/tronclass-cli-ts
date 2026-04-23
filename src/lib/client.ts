@@ -85,7 +85,6 @@ export interface PendingCaptcha {
   school: "fju";
   baseUrl: string;
   username: string;
-  password: string;
   submitUrl: string;
   lt: string;
   execution: string;

@@ -49,11 +49,18 @@ export async function runAuth(username: string, options: AuthOptions = {}): Prom
   console.log(`Logging in to ${baseUrl}...`);
   const api = new TronClass(baseUrl);
 
-  const result = await api.login({
-    username,
-    password,
-    ocrFunction: promptUserForCaptcha,
-  });
+  let result;
+  try {
+    result = await api.login({
+      username,
+      password,
+      ocrFunction: promptUserForCaptcha,
+    });
+  } catch (error: any) {
+    // Wrap unhandled SDK errors (network/DNS/parse failures) so the user sees
+    // the auth context rather than a bare SDK stack trace.
+    throw new Error(`Authentication failed: ${error?.message ?? String(error)}`);
+  }
 
   if (!result.success) {
     throw new Error(`Authentication failed: ${result.message}`);

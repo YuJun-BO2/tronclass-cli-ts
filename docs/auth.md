@@ -10,7 +10,7 @@ tronclass auth <subcommand> [options]
 
 ## Subcommands
 
-### `login [--fju] [--password <p>] [--base-url <u>] <username>`
+### `login [--fju] [--non-interactive] [--password <p>] [--base-url <u>] <username>`
 
 Authenticate with TronClass. Logins go through the TronClass API SDK, which
 automatically handles the school's CAS / Keycloak flow and CAPTCHA
@@ -31,40 +31,38 @@ When the school's login page requires a CAPTCHA, the CLI downloads the
 image, opens it with your system's default image viewer, and prompts you
 to type the code.
 
-**Non-interactive login** — for scripts / automation:
+**Non-interactive login (no CAPTCHA)** — for scripts / automation against
+deployments that don't serve a CAPTCHA:
 
 ```bash
-# Generic: supply base URL and password up front
 tronclass auth login --password 'my_password' --base-url https://elearn.example.edu.tw <your_username>
-
-# FJU: --fju implies the FJU base URL
-tronclass auth login --fju --password 'my_password' <your_username>
 ```
 
-Because CAPTCHAs can't be solved without a human in the loop, the FJU
-non-interactive flow **defers the CAPTCHA step**:
+**Non-interactive FJU login (deferred CAPTCHA)** — for agents / scripts
+targeting FJU, where the login page always serves a CAPTCHA that a human
+needs to solve:
 
-1. The CLI parses the login form, downloads the CAPTCHA image, saves the
-   pending-login state (username, password, form tokens, cookies), and
-   opens the image with your default viewer.
-2. It prints a **captcha ID** and exits successfully (exit code 0).
-3. You (or a supervising user) read the code from the image and complete
-   the login with `tronclass auth captcha <id> <code>`.
+```bash
+# Step 1: parse the form, download the captcha image, save pending state.
+# Exits 0 and prints a captcha ID. No password is stored on disk.
+tronclass auth login --fju --non-interactive <your_username>
 
-Pending-login state is stored in `~/.tronclass-cli/pending-captcha/<id>.json`
-(mode `0600`) and expires after 10 minutes.
+# Step 2: supply the password and the captcha code to complete the login.
+tronclass auth captcha --password '<password>' <captcha_id> <code>
+```
 
-> The non-interactive deferred-CAPTCHA flow is implemented only for
-> `--fju`. If you use `--password` with `--base-url` against a school that
-> requires a CAPTCHA, the login will fail — run the interactive form
-> instead.
+The pending-login state is stored at
+`~/.tronclass-cli/pending-captcha/<id>.json` (mode `0600`) and expires
+after 10 minutes. The password is **never** persisted — it is supplied
+only at resume time and used exactly once.
 
 **Flags:**
 
 | Flag | Description |
 |---|---|
 | `--fju` | Preset the base URL to `https://elearn2.fju.edu.tw` (skip the base-URL prompt). |
-| `--password <p>` | Supply the password non-interactively. Required for deferred CAPTCHA flow. |
+| `--non-interactive` | Defer the CAPTCHA step so the password can be supplied at resume time. Requires `--fju`. |
+| `--password <p>` | Supply the password non-interactively (also used by `auth captcha`). |
 | `--base-url <u>` | Supply the base URL non-interactively. Mutually exclusive with `--fju`. |
 
 *(If running locally via npm)*:
@@ -81,27 +79,30 @@ npm run dev -- auth login [--fju] <username>
 2. **Session saving** — on success, session cookies and account info
    (username, student ID, base URL, school tag) are saved to
    `~/.tronclass-cli/` for reuse by subsequent commands.
-3. **FJU deferred-CAPTCHA** — only when `--fju --password` is used. The
-   CLI stores the login in `pending-captcha/<id>.json`, prints the
-   captcha ID, and exits 0. `auth captcha <id> <code>` finishes it.
+3. **Deferred-CAPTCHA (FJU only)** — triggered by `--fju --non-interactive`.
+   The form is parsed and the captcha image is downloaded, but the
+   password is not requested. A captcha ID is printed; the caller passes
+   the password and the solved code to `auth captcha`.
 
 ---
 
-### `captcha <id> <code>`
+### `captcha --password <p> <id> <code>`
 
 Complete a pending FJU login that was paused on a CAPTCHA challenge.
-`<id>` is the value printed by the previous `auth login --fju --password`
-invocation; `<code>` is the CAPTCHA characters you read from the saved
-image.
+`<id>` is the value printed by the previous
+`auth login --fju --non-interactive` invocation; `<code>` is the CAPTCHA
+characters you read from the saved image; `<p>` is the user's password
+(not stored from the previous step).
 
 ```bash
-tronclass auth captcha abc123def456 3xyz
+tronclass auth captcha --password 'my_password' abc123def456 3xyz
 ```
 
 On success, the pending-login state file and the saved CAPTCHA image are
 removed and the session is saved normally. On failure (wrong code,
-expired state, etc.) the command exits non-zero; re-run `auth login` to
-start over.
+expired state, etc.) the pending state is also cleared (the CAS
+`execution` token is single-use) and the error message instructs you to
+re-run `auth login`.
 
 ---
 
@@ -154,14 +155,14 @@ Login to a custom TronClass deployment (interactive, prompt for base URL + passw
 tronclass auth login myusername
 ```
 
-Non-interactive FJU login (deferred CAPTCHA):
+Non-interactive FJU login (deferred CAPTCHA — for agents):
 ```bash
-tronclass auth login --fju --password 'secret' 409123456
+tronclass auth login --fju --non-interactive 409123456
 # ... the CLI opens the captcha image and prints:
 #   Captcha ID: abc123def456
 #   To complete login, run:
-#     tronclass auth captcha abc123def456 <code>
-tronclass auth captcha abc123def456 3xyz
+#     tronclass auth captcha --password <password> abc123def456 <code>
+tronclass auth captcha --password 'secret' abc123def456 3xyz
 ```
 
 Non-interactive generic login (no CAPTCHA required):

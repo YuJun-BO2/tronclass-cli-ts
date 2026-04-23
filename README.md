@@ -4,7 +4,7 @@ A modern, fast, and cross-platform command-line interface for the TronClass lear
 
 ## Features
 
-- **Robust Authentication**: Seamlessly handles FJU CAS login, including automatic session restoration and interactive CAPTCHA detection. `auth check` shows session expiry and time remaining.
+- **Unified Authentication**: One login flow for any TronClass deployment, powered by the Tronclass-API SDK (traditional CAS and Keycloak both supported). FJU users get a `--fju` shortcut that presets the base URL. Non-interactive mode with deferred CAPTCHA solving is available for FJU automation. `auth check` shows session expiry and time remaining.
 - **Session Persistence**: Saves your login state securely at `~/.tronclass-cli/cookies.json`, so you stay logged in across sessions.
 - **Course Management**: List your ongoing or historical courses with customizable fields and filtering.
 - **To-Do List**: Quick access to your pending tasks, assignments, and upcoming deadlines.
@@ -43,10 +43,10 @@ npm install -g tronclass-cli
 Once installed, use the `tronclass` command from anywhere:
 
 ```bash
-# Login to your account (generic API flow)
+# Login (prompts for base URL, password, and CAPTCHA if required)
 tronclass auth login <your_username>
 
-# Login using FJU-specific interactive CAPTCHA flow
+# FJU shortcut: preset the base URL, so you're only prompted for password + CAPTCHA
 tronclass auth login --fju <your_username>
 
 # Check current authentication status

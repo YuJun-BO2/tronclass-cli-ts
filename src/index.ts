@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-import { runFjuAuth, resumeFjuAuthWithCaptcha } from "./lib/fjuAuth";
-import { runApiAuth } from "./lib/apiAuth";
+import { runFjuAuthNonInteractive, resumeFjuAuthWithCaptcha } from "./lib/fjuAuth";
+import { runAuth } from "./lib/auth";
+import { DEFAULT_BASE_URL } from "./lib/client";
 import { runTodo } from "./todo";
 import { runCourseList } from "./course";
 import { runActivitiesList, runActivitiesView } from "./activities";
@@ -34,7 +35,7 @@ function printUsage(): void {
   console.log("      --raw               Print the raw JSON response from the API (for courses)");
   console.log("      --preview           Download preview instead of original file (for activities download)");
   console.log("      --draft             Submit homework as a draft (for homework submit)");
-  console.log("      --fju               Use FJU-specific login flow handling interactive captchas");
+  console.log("      --fju               Preset FJU base URL (skip base URL prompt)");
   console.log("      --password <p>      Supply password non-interactively (for auth login)");
   console.log("      --base-url <u>      Supply TronClass base URL non-interactively (for auth login)");
 }
@@ -99,7 +100,7 @@ async function main(): Promise<void> {
         const loginArgs = args.slice(2);
         const isFju = hasFlag(loginArgs, "--fju");
         const password = parseFlagValue(loginArgs, "--password");
-        const baseUrl = parseFlagValue(loginArgs, "--base-url");
+        const baseUrlFlag = parseFlagValue(loginArgs, "--base-url");
         const positionalArgs = filterPositional(loginArgs, ["--password", "--base-url"]);
         const username = positionalArgs[0];
 
@@ -109,14 +110,23 @@ async function main(): Promise<void> {
           process.exit(1);
         }
 
-        if (isFju) {
-          if (baseUrl) {
-            console.error("--base-url is not supported with --fju (FJU flow uses a fixed base URL).");
-            process.exit(1);
-          }
-          await runFjuAuth(username, { password });
+        if (isFju && baseUrlFlag) {
+          console.error("--base-url is not supported with --fju (FJU preset uses a fixed base URL).");
+          process.exit(1);
+        }
+
+        // --fju + --password: non-interactive, defers captcha. Needed because SDK's
+        // api.login() can't pause at captcha for agent/skill callers.
+        if (isFju && password) {
+          await runFjuAuthNonInteractive(username, { password });
         } else {
-          await runApiAuth(username, { password, baseUrl });
+          // Everything else (interactive, or custom-school non-interactive) goes
+          // through the SDK. Captcha, if any, is solved by the user via prompt.
+          await runAuth(username, {
+            baseUrl: isFju ? DEFAULT_BASE_URL : baseUrlFlag,
+            school: isFju ? "fju" : "custom",
+            password,
+          });
         }
       } else if (subCommand === "captcha") {
         const positional = args.slice(2).filter(a => !a.startsWith("-"));

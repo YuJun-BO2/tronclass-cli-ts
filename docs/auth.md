@@ -10,7 +10,17 @@ tronclass auth <subcommand> [options]
 
 ## Subcommands
 
-### `login [--fju] [--non-interactive] [--password <p>] [--base-url <u>] <username>`
+### `login <username>`
+
+Supported forms:
+
+```bash
+# Interactive or password-supplied login
+tronclass auth login [--fju] [--password <p>] [--base-url <u>] <username>
+
+# Deferred-CAPTCHA flow (FJU only)
+tronclass auth login --fju --non-interactive <username>
+```
 
 Authenticate with TronClass. Logins go through the TronClass API SDK, which
 automatically handles the school's CAS / Keycloak flow and CAPTCHA
@@ -61,8 +71,8 @@ only at resume time and used exactly once.
 | Flag | Description |
 |---|---|
 | `--fju` | Preset the base URL to `https://elearn2.fju.edu.tw` (skip the base-URL prompt). |
-| `--non-interactive` | Defer the CAPTCHA step so the password can be supplied at resume time. Requires `--fju`. |
-| `--password <p>` | Supply the password non-interactively (also used by `auth captcha`). |
+| `--non-interactive` | Defer the CAPTCHA step so the password can be supplied at resume time. Requires `--fju`, and cannot be combined with `--password` on `auth login`. |
+| `--password <p>` | Supply the password non-interactively for regular login. In deferred-CAPTCHA flow, use it with `auth captcha` (not with `auth login --non-interactive`). |
 | `--base-url <u>` | Supply the base URL non-interactively. Mutually exclusive with `--fju`. |
 
 *(If running locally via npm)*:

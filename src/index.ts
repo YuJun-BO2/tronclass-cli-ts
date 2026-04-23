@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { runFjuAuthNonInteractive, resumeFjuAuthWithCaptcha } from "./lib/fjuAuth";
 import { runAuth } from "./lib/auth";
 import { DEFAULT_BASE_URL } from "./lib/client";
@@ -12,8 +14,11 @@ import { runAnnouncementsList, runAnnouncementsView } from "./announcements";
 import { loadConfig, clearAuth, loadCookies, getSessionInfo } from "./lib/client";
 import { bold, red, grn, ylw, gry, renderKVTable } from "./lib/ui";
 
+const CLI_PACKAGE_NAME = "tronclass-cli";
+
 function printUsage(): void {
   console.log("Usage:");
+  console.log("  tronclass -v, --version                      Show CLI version");
   console.log("  tronclass auth login [--fju] [--password <p>] [--base-url <u>] <username>");
   console.log("                                                Login to TronClass");
   console.log("  tronclass auth login --fju --non-interactive <username>");
@@ -42,6 +47,44 @@ function printUsage(): void {
   console.log("      --non-interactive   Defer FJU captcha to a separate 'auth captcha' step (for agents)");
   console.log("      --password <p>      Supply password non-interactively (for auth login / auth captcha)");
   console.log("      --base-url <u>      Supply TronClass base URL non-interactively (for auth login)");
+}
+
+function getCliVersion(): string {
+  const starts = [
+    process.argv[1] ? path.dirname(process.argv[1]) : "",
+    __dirname,
+  ].filter(Boolean);
+
+  const visitedPkgPaths = new Set<string>();
+
+  for (const start of starts) {
+    let dir = start;
+    while (true) {
+      const pkgPath = path.join(dir, "package.json");
+      if (!visitedPkgPaths.has(pkgPath)) {
+        visitedPkgPaths.add(pkgPath);
+        try {
+          const raw = fs.readFileSync(pkgPath, "utf-8");
+          const pkg = JSON.parse(raw) as { name?: unknown; version?: unknown };
+          if (pkg.name === CLI_PACKAGE_NAME && typeof pkg.version === "string" && pkg.version) {
+            return pkg.version;
+          }
+        } catch {
+          // continue searching parent directories
+        }
+      }
+
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  }
+
+  return "unknown";
+}
+
+function printVersion(): void {
+  console.log(`${CLI_PACKAGE_NAME} ${getCliVersion()}`);
 }
 
 function parseFields(args: string[]): string[] | undefined {
@@ -88,6 +131,11 @@ function filterPositional(args: string[], valueFlags: string[]): string[] {
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
+
+  if (args.length === 1 && (args[0] === "-v" || args[0] === "--version")) {
+    printVersion();
+    process.exit(0);
+  }
 
   if (args.length === 0 || args.includes("-h") || args.includes("--help")) {
     printUsage();

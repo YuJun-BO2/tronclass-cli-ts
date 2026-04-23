@@ -250,7 +250,25 @@ export async function resumeFjuAuthWithCaptcha(
   // The httpClient's `fetcher` is bound to its original empty jar at construction time,
   // so replacing `jar` alone is not enough — we must rebuild the fetcher too. Otherwise
   // the CAS session cookies (Path=/cas) aren't sent, and the server rejects the `execution` token.
-  const restoredJar = CookieJar.fromJSON(state.cookies as any);
+  //
+  // `CookieJar.fromJSON` throws on a malformed shape and can also return `null` for some
+  // corruption modes. Handle both so a truncated state file fails loudly instead of
+  // letting `null` / a half-built jar reach the fetcher.
+  let restoredJar: CookieJar | null;
+  try {
+    restoredJar = CookieJar.fromJSON(state.cookies as any);
+  } catch (err: any) {
+    await deletePendingCaptcha(id).catch(() => {});
+    throw new Error(
+      `Pending captcha state '${id}' has a corrupted cookie store (${err?.message ?? err}). Please re-run 'auth login --fju --non-interactive'.`,
+    );
+  }
+  if (!restoredJar) {
+    await deletePendingCaptcha(id).catch(() => {});
+    throw new Error(
+      `Pending captcha state '${id}' has a corrupted cookie store. Please re-run 'auth login --fju --non-interactive'.`,
+    );
+  }
   (api as any).httpClient.jar = restoredJar;
   (api as any).httpClient.fetcher = fetchCookie(fetch, restoredJar);
   const sdkJar: CookieJar = restoredJar;

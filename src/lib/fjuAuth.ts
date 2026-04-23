@@ -284,19 +284,20 @@ export async function resumeFjuAuthWithCaptcha(
   }
   formData.set("captcha", code);
 
-  await api.call(state.submitUrl, {
-    method: "POST",
-    body: formData,
-  });
-
-  // CAS `execution` tokens are one-time-use, so the saved state is spent whether
-  // the submission succeeded or failed. Always clean up in `finally`, but rethrow
-  // with guidance so the user knows they must re-run `auth login`.
+  // CAS `execution` tokens are one-time-use, so any failure here (network on the
+  // POST, or a bad-captcha / bad-password response detected by finalizeFjuLogin)
+  // spends the saved state. Wrap both the POST and the finalization in one
+  // try/catch/finally so cleanup runs on any exit path, including a POST-time
+  // network error — otherwise the state file would orphan on disk until TTL.
   try {
+    await api.call(state.submitUrl, {
+      method: "POST",
+      body: formData,
+    });
     await finalizeFjuLogin(api, sdkJar, state.username);
   } catch (err: any) {
     throw new Error(
-      `${err.message} The pending captcha state has been cleared — re-run 'tronclass auth login --fju --password <p> <user>' to try again.`,
+      `${err?.message ?? err} The pending captcha state has been cleared — re-run 'tronclass auth login --fju --non-interactive <user>' to try again.`,
     );
   } finally {
     await deletePendingCaptcha(id).catch(() => {});

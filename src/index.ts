@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-import { runFjuAuth } from "./lib/fjuAuth";
-import { runApiAuth } from "./lib/apiAuth";
+import { runFjuAuthNonInteractive, resumeFjuAuthWithCaptcha } from "./lib/fjuAuth";
+import { runAuth } from "./lib/auth";
+import { DEFAULT_BASE_URL } from "./lib/client";
 import { runTodo } from "./todo";
 import { runCourseList } from "./course";
 import { runActivitiesList, runActivitiesView } from "./activities";
@@ -13,7 +14,12 @@ import { bold, red, grn, ylw, gry, renderKVTable } from "./lib/ui";
 
 function printUsage(): void {
   console.log("Usage:");
-  console.log("  tronclass auth login [--fju] <username>       Login to TronClass");
+  console.log("  tronclass auth login [--fju] [--password <p>] [--base-url <u>] <username>");
+  console.log("                                                Login to TronClass");
+  console.log("  tronclass auth login --fju --non-interactive <username>");
+  console.log("                                                Start FJU login, defer captcha for later resume");
+  console.log("  tronclass auth captcha --password <p> <id> <code>");
+  console.log("                                                Complete a deferred FJU login");
   console.log("  tronclass auth check                          Check current authentication status");
   console.log("  tronclass auth logout                         Clear saved session");
   console.log("  tronclass todo [--fields f1,f2...]            View your to-do list");
@@ -32,7 +38,10 @@ function printUsage(): void {
   console.log("      --raw               Print the raw JSON response from the API (for courses)");
   console.log("      --preview           Download preview instead of original file (for activities download)");
   console.log("      --draft             Submit homework as a draft (for homework submit)");
-  console.log("      --fju               Use FJU-specific login flow handling interactive captchas");
+  console.log("      --fju               Preset FJU base URL (skip base URL prompt)");
+  console.log("      --non-interactive   Defer FJU captcha to a separate 'auth captcha' step (for agents)");
+  console.log("      --password <p>      Supply password non-interactively (for auth login / auth captcha)");
+  console.log("      --base-url <u>      Supply TronClass base URL non-interactively (for auth login)");
 }
 
 function parseFields(args: string[]): string[] | undefined {
@@ -53,6 +62,30 @@ function hasFlag(args: string[], flag: string): boolean {
   return args.includes(flag);
 }
 
+function parseFlagValue(args: string[], flag: string): string | undefined {
+  const idx = args.indexOf(flag);
+  if (idx === -1) return undefined;
+  const value = args[idx + 1];
+  if (value === undefined) {
+    throw new Error(`Option ${flag} requires a value.`);
+  }
+  return value;
+}
+
+function filterPositional(args: string[], valueFlags: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (valueFlags.includes(a)) {
+      i++; // skip value
+      continue;
+    }
+    if (a.startsWith("-")) continue;
+    out.push(a);
+  }
+  return out;
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
@@ -68,8 +101,12 @@ async function main(): Promise<void> {
       const subCommand = args[1];
 
       if (subCommand === "login") {
-        const isFju = hasFlag(args, "--fju");
-        const positionalArgs = args.slice(2).filter(arg => !arg.startsWith("-"));
+        const loginArgs = args.slice(2);
+        const isFju = hasFlag(loginArgs, "--fju");
+        const isNonInteractive = hasFlag(loginArgs, "--non-interactive");
+        const password = parseFlagValue(loginArgs, "--password");
+        const baseUrlFlag = parseFlagValue(loginArgs, "--base-url");
+        const positionalArgs = filterPositional(loginArgs, ["--password", "--base-url"]);
         const username = positionalArgs[0];
 
         if (!username) {
@@ -78,11 +115,50 @@ async function main(): Promise<void> {
           process.exit(1);
         }
 
-        if (isFju) {
-          await runFjuAuth(username);
-        } else {
-          await runApiAuth(username);
+        if (isFju && baseUrlFlag) {
+          console.error("--base-url is not supported with --fju (FJU preset uses a fixed base URL).");
+          process.exit(1);
         }
+
+        if (isNonInteractive && !isFju) {
+          console.error("--non-interactive is only supported with --fju (deferred-captcha flow).");
+          process.exit(1);
+        }
+
+        if (isNonInteractive && password) {
+          console.error("--non-interactive defers the password to 'auth captcha'. Omit --password here.");
+          process.exit(1);
+        }
+
+        // --fju + --non-interactive: defers captcha to a separate 'auth captcha'
+        // step. Needed because the SDK's api.login() can't pause at captcha for
+        // agent/skill callers. Password is supplied later, not stored on disk.
+        if (isNonInteractive) {
+          await runFjuAuthNonInteractive(username);
+        } else {
+          // Everything else (interactive FJU, custom school, password-supplied
+          // but captcha-solved interactively) goes through the SDK.
+          await runAuth(username, {
+            baseUrl: isFju ? DEFAULT_BASE_URL : baseUrlFlag,
+            school: isFju ? "fju" : "custom",
+            password,
+          });
+        }
+      } else if (subCommand === "captcha") {
+        const captchaArgs = args.slice(2);
+        const password = parseFlagValue(captchaArgs, "--password");
+        const positional = filterPositional(captchaArgs, ["--password"]);
+        const id = positional[0];
+        const code = positional[1];
+        if (!id || !code) {
+          console.error("Usage: tronclass auth captcha --password <p> <id> <code>");
+          process.exit(1);
+        }
+        if (!password) {
+          console.error("Missing --password. The pending captcha state does not store passwords; supply it again at resume time.");
+          process.exit(1);
+        }
+        await resumeFjuAuthWithCaptcha(id, code, password);
       } else if (subCommand === "check") {
         const config = await loadConfig();
         const jar = await loadCookies();

@@ -4,13 +4,13 @@ Welcome to the documentation for **TronClass CLI (TypeScript)**, a comprehensive
 
 ## Overview
 
-This tool provides a powerful alternative to the TronClass web interface, allowing you to manage your courses, tasks, and materials directly from your terminal. It supports both a generic API login flow (compatible with any TronClass deployment) and an FJU-specific CAS flow with interactive CAPTCHA handling.
+This tool provides a powerful alternative to the TronClass web interface, allowing you to manage your courses, tasks, and materials directly from your terminal. It supports any TronClass deployment through a single unified login flow, and offers a `--fju` shortcut that presets the base URL for Fu Jen Catholic University users.
 
 ## Available Commands
 
 Here is a quick overview of the available commands. Click on each command for more detailed documentation.
 
-*   **[auth](./auth.md)**: Authenticate with TronClass (generic API or FJU CAS), check status, and manage your session.
+*   **[auth](./auth.md)**: Authenticate with TronClass, check status, and manage your session. Handles CAPTCHA interactively; supports a deferred-CAPTCHA flow for automated FJU logins.
 *   **[courses](./courses.md)**: View your course list, filter by ongoing courses, and extract detailed course information.
 *   **[todo](./todo.md)**: View your current to-do list and upcoming deadlines.
 *   **[activities](./activities.md)**: View and download course materials and activities.
@@ -30,10 +30,10 @@ npm install -g tronclass-cli
 Once installed, you can use the `tronclass` command directly from your terminal:
 
 ```bash
-# Login (generic API flow, works with any TronClass deployment)
+# Login (prompts for base URL, password, and CAPTCHA if required)
 tronclass auth login <your_username>
 
-# Login using FJU CAS flow (with CAPTCHA support)
+# FJU shortcut: presets the base URL
 tronclass auth login --fju <your_student_id>
 ```
 

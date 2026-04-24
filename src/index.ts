@@ -2,6 +2,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { TronClass } from "tronclass-api";
 import { runFjuAuthNonInteractive, resumeFjuAuthWithCaptcha } from "./lib/fjuAuth";
 import { runAuth } from "./lib/auth";
 import { DEFAULT_BASE_URL } from "./lib/client";
@@ -215,39 +216,57 @@ async function main(): Promise<void> {
         if (cookies.length === 0 || !config.username) {
           console.log("Not authenticated.");
         } else {
-          const { loginTime, expiresAt } = await getSessionInfo(config.baseUrl);
-          const now = Date.now();
-          const remainingMs = expiresAt ? expiresAt.getTime() - now : null;
-          const isValid = remainingMs !== null && remainingMs > 0;
+          const { loginTime } = await getSessionInfo(config.baseUrl);
+
+          // Liveness probe: hit an authenticated JSON endpoint and read the
+          // status. Cookie-value parsing was unreliable (the embedded
+          // timestamp's semantics are not specified and the server treats
+          // sessions with sliding TTL anyway), so the only authoritative
+          // signal is what the server returns right now.
+          const api = new TronClass(config.baseUrl);
+          (api as any).auth.loggedIn = true;
+          const sdkJar = (api as any).httpClient.jar;
+          for (const cookie of cookies) {
+            await sdkJar.setCookie(cookie, config.baseUrl);
+          }
+
+          let statusText: string;
+          let probeDetail = "";
+          try {
+            const res = await api.call("/api/todos");
+            const finalUrl: string = res.url ?? "";
+            const redirectedToLogin = finalUrl.includes("/cas/login") || finalUrl.includes("/login?");
+            if (res.status === 401 || res.status === 403 || redirectedToLogin) {
+              statusText = red("● Expired");
+              probeDetail = redirectedToLogin
+                ? `redirected to ${finalUrl}`
+                : `HTTP ${res.status}`;
+            } else if (res.status >= 200 && res.status < 300) {
+              statusText = grn("● Valid");
+            } else {
+              statusText = ylw("● Unknown");
+              probeDetail = `HTTP ${res.status}`;
+            }
+          } catch (err: any) {
+            statusText = ylw("● Unknown");
+            probeDetail = err?.message ?? "request failed";
+          }
 
           function formatDate(d: Date | null): string {
             if (!d) return gry("unknown");
             return d.toLocaleString("zh-TW", { hour12: false });
           }
 
-          function formatRemaining(ms: number | null): string {
-            if (ms === null) return gry("unknown");
-            if (ms <= 0) return red("已過期 (Expired)");
-            const h = Math.floor(ms / 3600000);
-            const m = Math.floor((ms % 3600000) / 60000);
-            const text = h > 0 ? `${h} 小時 ${m} 分鐘` : `${m} 分鐘`;
-            if (ms < 3600000) return red(text);
-            if (ms < 86400000) return ylw(text);
-            return grn(text);
-          }
-
-          const statusText = isValid ? grn("● Valid") : red("● Expired");
-
-          renderKVTable({
+          const row: Record<string, string> = {
             "Status":     statusText,
             "User":       bold(config.username),
             "Student ID": config.studentId ?? gry("unknown"),
             "Base URL":   config.baseUrl,
             "School":     config.school ?? "custom",
             "Login Time": formatDate(loginTime),
-            "Expires At": formatDate(expiresAt),
-            "Remaining":  formatRemaining(remainingMs),
-          });
+          };
+          if (probeDetail) row["Probe"] = gry(probeDetail);
+          renderKVTable(row);
         }
       } else if (subCommand === "logout") {
         await clearAuth();

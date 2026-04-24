@@ -54,7 +54,6 @@ export async function saveCookies(jar: CookieJar): Promise<void> {
 
 export interface SessionInfo {
   loginTime: Date | null;
-  expiresAt: Date | null;
 }
 
 export async function getSessionInfo(baseUrl: string): Promise<SessionInfo> {
@@ -62,16 +61,11 @@ export async function getSessionInfo(baseUrl: string): Promise<SessionInfo> {
   const cookies = await jar.getCookies(baseUrl);
   const sessionCookie = cookies.find((c) => c.key === "session");
 
-  if (!sessionCookie) return { loginTime: null, expiresAt: null };
+  if (!sessionCookie) return { loginTime: null };
 
   const loginTime = sessionCookie.creation instanceof Date ? sessionCookie.creation : null;
 
-  // Token format: V2-1-<uuid>.<base64_userId>.<expiry_ms>.<signature>
-  const parts = sessionCookie.value.split(".");
-  const expiryMs = parts.length >= 3 ? Number(parts[2]) : NaN;
-  const expiresAt = Number.isFinite(expiryMs) ? new Date(expiryMs) : null;
-
-  return { loginTime, expiresAt };
+  return { loginTime };
 }
 
 export async function clearAuth(): Promise<void> {

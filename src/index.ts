@@ -11,7 +11,7 @@ import { runActivitiesList, runActivitiesView } from "./activities";
 import { runDownload } from "./lib/download";
 import { runHomeworkList, runHomeworkSubmit } from "./homework";
 import { runAnnouncementsList, runAnnouncementsView } from "./announcements";
-import { loadConfig, clearAuth, loadCookies, getSessionInfo } from "./lib/client";
+import { loadConfig, clearAuth, loadCookies, getSessionInfo, initApi } from "./lib/client";
 import { bold, red, grn, ylw, gry, renderKVTable } from "./lib/ui";
 
 const CLI_PACKAGE_NAME = "tronclass-cli";
@@ -215,39 +215,60 @@ async function main(): Promise<void> {
         if (cookies.length === 0 || !config.username) {
           console.log("Not authenticated.");
         } else {
-          const { loginTime, expiresAt } = await getSessionInfo(config.baseUrl);
-          const now = Date.now();
-          const remainingMs = expiresAt ? expiresAt.getTime() - now : null;
-          const isValid = remainingMs !== null && remainingMs > 0;
+          const { loginTime } = await getSessionInfo(config.baseUrl);
+
+          // Liveness probe: hit an authenticated JSON endpoint and read the
+          // status. Cookie-value parsing was unreliable (the embedded
+          // timestamp's semantics are not specified and the server treats
+          // sessions with sliding TTL anyway), so the only authoritative
+          // signal is what the server returns right now.
+          const { api } = await initApi();
+
+          let statusText: string;
+          let probeDetail = "";
+          try {
+            // `api.call()` is typed as `Promise<Response>`, so `res.url` is a
+            // `string` populated by fetch with the final post-redirect URL
+            // (fetch-cookie follows redirects manually and forwards `.url`).
+            // If the server expires the session it typically 302s to
+            // /cas/login or /login?..., which fetch resolves to a 200 HTML
+            // page — `res.redirected` + the URL pattern catch that case.
+            const res = await api.call("/api/todos");
+            const finalUrl = res.url;
+            const redirectedToLogin =
+              res.redirected &&
+              (finalUrl.includes("/cas/login") || finalUrl.includes("/login?"));
+            if (res.status === 401 || res.status === 403 || redirectedToLogin) {
+              statusText = red("● Expired");
+              probeDetail = redirectedToLogin
+                ? `redirected to ${finalUrl}`
+                : `HTTP ${res.status}`;
+            } else if (res.status >= 200 && res.status < 300) {
+              statusText = grn("● Valid");
+            } else {
+              statusText = ylw("● Unknown");
+              probeDetail = `HTTP ${res.status}`;
+            }
+          } catch (err: any) {
+            statusText = ylw("● Unknown");
+            probeDetail = err?.message ?? "request failed";
+          }
 
           function formatDate(d: Date | null): string {
             if (!d) return gry("unknown");
             return d.toLocaleString("zh-TW", { hour12: false });
           }
 
-          function formatRemaining(ms: number | null): string {
-            if (ms === null) return gry("unknown");
-            if (ms <= 0) return red("已過期 (Expired)");
-            const h = Math.floor(ms / 3600000);
-            const m = Math.floor((ms % 3600000) / 60000);
-            const text = h > 0 ? `${h} 小時 ${m} 分鐘` : `${m} 分鐘`;
-            if (ms < 3600000) return red(text);
-            if (ms < 86400000) return ylw(text);
-            return grn(text);
-          }
-
-          const statusText = isValid ? grn("● Valid") : red("● Expired");
-
-          renderKVTable({
+          const row: Record<string, string> = {
             "Status":     statusText,
             "User":       bold(config.username),
             "Student ID": config.studentId ?? gry("unknown"),
             "Base URL":   config.baseUrl,
             "School":     config.school ?? "custom",
             "Login Time": formatDate(loginTime),
-            "Expires At": formatDate(expiresAt),
-            "Remaining":  formatRemaining(remainingMs),
-          });
+          };
+          if (probeDetail) row["Probe"] = gry(probeDetail);
+          renderKVTable(row);
         }
       } else if (subCommand === "logout") {
         await clearAuth();

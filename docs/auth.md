@@ -118,7 +118,16 @@ re-run `auth login`.
 
 ### `check`
 
-Display detailed authentication status in a formatted table, including login time, expiry, and time remaining.
+Display authentication status in a formatted table. Validity is determined by
+making a live request to an authenticated TronClass API endpoint and inspecting
+the response: `200` is treated as **Valid**, `401`/`403` (or a redirect to the
+CAS login page) as **Expired**, and anything else as **Unknown**.
+
+The cookie value's embedded timestamp is **not** used to estimate an expiry —
+its semantics are not specified by the upstream SDK or server, and TronClass
+appears to use a server-side sliding TTL that any client-side estimate cannot
+see. **Login Time** comes from the cookie's creation time and is informational
+only.
 
 ```bash
 tronclass auth check
@@ -134,12 +143,13 @@ Example output:
 │ Base URL   │ https://elearn2.fju.edu.tw  │
 │ School     │ fju                         │
 │ Login Time │ 2026/4/21 03:12:05          │
-│ Expires At │ 2026/4/22 03:12:06          │
-│ Remaining  │ 14 小時 30 分鐘             │
 └────────────┴─────────────────────────────┘
 ```
 
-The **Remaining** field is color-coded: green (>24 h), yellow (<24 h), red (<1 h or expired). Sessions last 24 hours from login.
+When the probe cannot reach the server (e.g. no network) or the response is
+neither a success nor an explicit auth failure, the **Status** field shows
+`● Unknown` and a `Probe` row is added with a short reason (HTTP code or error
+message).
 
 ---
 

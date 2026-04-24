@@ -2,7 +2,6 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { TronClass } from "tronclass-api";
 import { runFjuAuthNonInteractive, resumeFjuAuthWithCaptcha } from "./lib/fjuAuth";
 import { runAuth } from "./lib/auth";
 import { DEFAULT_BASE_URL } from "./lib/client";
@@ -12,7 +11,7 @@ import { runActivitiesList, runActivitiesView } from "./activities";
 import { runDownload } from "./lib/download";
 import { runHomeworkList, runHomeworkSubmit } from "./homework";
 import { runAnnouncementsList, runAnnouncementsView } from "./announcements";
-import { loadConfig, clearAuth, loadCookies, getSessionInfo } from "./lib/client";
+import { loadConfig, clearAuth, loadCookies, getSessionInfo, initApi } from "./lib/client";
 import { bold, red, grn, ylw, gry, renderKVTable } from "./lib/ui";
 
 const CLI_PACKAGE_NAME = "tronclass-cli";
@@ -223,19 +222,22 @@ async function main(): Promise<void> {
           // timestamp's semantics are not specified and the server treats
           // sessions with sliding TTL anyway), so the only authoritative
           // signal is what the server returns right now.
-          const api = new TronClass(config.baseUrl);
-          (api as any).auth.loggedIn = true;
-          const sdkJar = (api as any).httpClient.jar;
-          for (const cookie of cookies) {
-            await sdkJar.setCookie(cookie, config.baseUrl);
-          }
+          const { api } = await initApi();
 
           let statusText: string;
           let probeDetail = "";
           try {
+            // `api.call()` is typed as `Promise<Response>`, so `res.url` is a
+            // `string` populated by fetch with the final post-redirect URL
+            // (fetch-cookie follows redirects manually and forwards `.url`).
+            // If the server expires the session it typically 302s to
+            // /cas/login or /login?..., which fetch resolves to a 200 HTML
+            // page — `res.redirected` + the URL pattern catch that case.
             const res = await api.call("/api/todos");
-            const finalUrl: string = res.url ?? "";
-            const redirectedToLogin = finalUrl.includes("/cas/login") || finalUrl.includes("/login?");
+            const finalUrl = res.url;
+            const redirectedToLogin =
+              res.redirected &&
+              (finalUrl.includes("/cas/login") || finalUrl.includes("/login?"));
             if (res.status === 401 || res.status === 403 || redirectedToLogin) {
               statusText = red("● Expired");
               probeDetail = redirectedToLogin

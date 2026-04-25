@@ -9,7 +9,7 @@ A modern, fast, and cross-platform command-line interface for the TronClass lear
 - **Course Management**: List your ongoing or historical courses with customizable fields and filtering.
 - **To-Do List**: Quick access to your pending tasks, assignments, and upcoming deadlines.
 - **Course Activities**: Browse course modules, view detailed activity metadata, and download course materials.
-- **Homework Submission**: Submit multiple files to assignments directly from your terminal with support for draft mode.
+- **Homework Workflow**: List assignments, read the prompt and download teacher attachments, submit multiple files (including draft mode), and inspect the contents of your submitted files or saved drafts — all without leaving the terminal.
 - **Announcements**: Browse school-wide and course-specific announcements with HTML rendered directly in the terminal — bold, hyperlinks, images, and lists all supported.
 - **Developer Friendly**: Built with TypeScript for type safety and easy maintainability.
 
@@ -66,6 +66,15 @@ tronclass activities list <course_id>
 
 # Download course material
 tronclass activities download <ref_id> <output_path>
+
+# List homework for a course
+tronclass hw list <course_id>
+
+# View a homework's prompt, attachments, and your own submission/draft
+tronclass hw view <activity_id>
+
+# Submit files (add --draft to save without finalizing)
+tronclass hw submit <activity_id> ./homework.pdf [--draft]
 
 # List school-wide announcements
 tronclass ann list

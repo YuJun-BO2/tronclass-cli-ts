@@ -15,6 +15,7 @@ export const DEFAULT_BASE_URL = "https://elearn2.fju.edu.tw";
 export interface CliConfig {
   username?: string;
   studentId?: string;
+  userId?: number;
   baseUrl: string;
   school?: string;
 }
@@ -143,6 +144,28 @@ export async function cleanupStalePendingCaptchas(): Promise<void> {
       // ignore malformed files
     }
   }));
+}
+
+// Look up the caller's TronClass internal user_id (distinct from `user_no`,
+// the school's 學號). Cached to config on first hit. Used by endpoints like
+// /api/activities/{aid}/students/{uid}/...
+//
+// /api/profile returns the full current-user record on the FJU TronClass
+// tenant; other common paths (/api/me, /api/users/me, ...) all 404 there.
+export async function getCurrentUserId(
+  api: TronClass,
+  config: CliConfig,
+): Promise<number | null> {
+  if (typeof config.userId === "number") return config.userId;
+  try {
+    const res = await api.callJson<any>("/api/profile");
+    const id = typeof res?.id === "number" ? res.id : Number(res?.id);
+    if (Number.isFinite(id) && id > 0) {
+      await saveConfig({ userId: id });
+      return id;
+    }
+  } catch { /* ignore — caller decides how to surface */ }
+  return null;
 }
 
 export async function initApi(): Promise<{ api: TronClass; config: CliConfig }> {

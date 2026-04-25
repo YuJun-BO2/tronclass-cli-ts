@@ -14,7 +14,7 @@ Here is a quick overview of the available commands. Click on each command for mo
 *   **[courses](./courses.md)**: View your course list, filter by ongoing courses, and extract detailed course information.
 *   **[todo](./todo.md)**: View your current to-do list and upcoming deadlines.
 *   **[activities](./activities.md)**: View and download course materials and activities.
-*   **[homework](./homework.md)**: View homework lists and submit files to assignments.
+*   **[homework](./homework.md)**: List homework, view a single assignment's prompt and your own submission/draft contents, and submit files.
 *   **[announcements](./announcements.md)**: Browse school-wide and course-specific announcements with terminal HTML rendering.
 
 ## Installation

@@ -9,7 +9,7 @@ import { runTodo } from "./todo";
 import { runCourseList } from "./course";
 import { runActivitiesList, runActivitiesView } from "./activities";
 import { runDownload } from "./lib/download";
-import { runHomeworkList, runHomeworkSubmit } from "./homework";
+import { runHomeworkList, runHomeworkSubmit, runHomeworkView } from "./homework";
 import { runAnnouncementsList, runAnnouncementsView } from "./announcements";
 import { loadConfig, clearAuth, loadCookies, getSessionInfo, initApi } from "./lib/client";
 import { bold, red, grn, ylw, gry, renderKVTable } from "./lib/ui";
@@ -33,6 +33,7 @@ function printUsage(): void {
   console.log("  tronclass activities view <activity_id>       View details of an activity");
   console.log("  tronclass activities download <ref_id> <out>  Download a file from an activity");
   console.log("  tronclass homework list <course_id>           List homework for a course");
+  console.log("  tronclass homework view <activity_id>         View homework details + my submission/draft");
   console.log("  tronclass homework submit <act_id> <files...> Submit files for homework");
   console.log("  tronclass ann list [course_id]                List announcements");
   console.log("  tronclass ann view <ann_id> [course_id]       View an announcement");
@@ -352,6 +353,16 @@ async function main(): Promise<void> {
         }
         const fields = parseFields(cmdArgs);
         await runHomeworkList(courseId, fields);
+
+      } else if (subCommand === "view" || subCommand === "v") {
+        const activityId = cmdArgs.filter(arg => !arg.startsWith("-"))[0];
+        if (!activityId) {
+          console.error("Missing activity_id.");
+          printUsage();
+          process.exit(1);
+        }
+        const raw = hasFlag(cmdArgs, "--raw");
+        await runHomeworkView(activityId, { raw });
 
       } else if (subCommand === "submit" || subCommand === "s") {
         const positionalArgs = cmdArgs.filter(arg => !arg.startsWith("-") && arg !== "--draft");

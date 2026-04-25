@@ -41,7 +41,7 @@ function printUsage(): void {
   console.log("    Options:");
   console.log("      --fields f1,f2...   Specify fields to display (for courses, todo, activities, homework)");
   console.log("      --all               Show all courses instead of only ongoing ones (for courses)");
-  console.log("      --raw               Print the raw JSON response from the API (for courses)");
+  console.log("      --raw               Print the raw JSON response from the API (for courses, homework view)");
   console.log("      --preview           Download preview instead of original file (for activities download)");
   console.log("      --draft             Submit homework as a draft (for homework submit)");
   console.log("      --fju               Preset FJU base URL (skip base URL prompt)");

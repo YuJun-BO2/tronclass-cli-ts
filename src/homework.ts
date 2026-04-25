@@ -136,13 +136,16 @@ export async function runHomeworkView(
   }
 
   // The generic /api/activities/{id} endpoint does not include `submitted` or
-  // the user's submission history. Resolve the richer data through two paths,
-  // preferring whichever succeeds on this deployment:
-  //   1. SDK's getHomeworkDetail — /api/courses/{cid}/homework-activities/{aid}.
-  //      May 404 or require different auth on some tenants (e.g. FJU).
-  //   2. Listing via getHomeworkActivities and picking the matching row.
-  //      Proven path — this is what `hw ls` uses, and every entry carries
-  //      the authoritative `submitted` flag.
+  // the user's submission history. Resolve the richer data via the SDK's
+  // getHomeworkActivities list and find the matching row — this is the path
+  // `hw ls` already uses, and every entry carries the authoritative `submitted`
+  // flag.
+  //
+  // SDK's getHomeworkDetail (/api/courses/{cid}/homework-activities/{aid}) is a
+  // theoretically richer source on some tenants but 404s reliably on FJU
+  // (tracked upstream as seven-317/Tronclass-API#1). Skipped in normal mode
+  // to avoid a guaranteed-failing round-trip; still fetched in --raw mode for
+  // diagnostics on tenants where it might work.
   const courseId =
     activity.course_id ?? activity.courseId ?? activity.course?.id ?? null;
 
@@ -152,10 +155,12 @@ export async function runHomeworkView(
   let hwListError: string | null = null;
 
   if (courseId != null) {
-    try {
-      hwDetail = await api.assignments.getHomeworkDetail(Number(courseId), Number(activityId));
-    } catch (err) {
-      hwDetailError = err instanceof Error ? err.message : String(err);
+    if (opts.raw) {
+      try {
+        hwDetail = await api.assignments.getHomeworkDetail(Number(courseId), Number(activityId));
+      } catch (err) {
+        hwDetailError = err instanceof Error ? err.message : String(err);
+      }
     }
 
     try {

@@ -161,17 +161,10 @@ export async function runHomeworkView(
     return;
   }
 
-  // The generic /api/activities/{id} endpoint does not include `submitted` or
-  // the user's submission history. Resolve the richer data via the SDK's
-  // getHomeworkActivities list and find the matching row — this is the path
-  // `hw ls` already uses, and every entry carries the authoritative `submitted`
-  // flag.
-  //
-  // SDK's getHomeworkDetail (/api/courses/{cid}/homework-activities/{aid}) is a
-  // theoretically richer source on some tenants but 404s reliably on FJU
-  // (tracked upstream as seven-317/Tronclass-API#1). Skipped in normal mode
-  // to avoid a guaranteed-failing round-trip; still fetched in --raw mode for
-  // diagnostics on tenants where it might work.
+  // The first /api/activities/{id} call resolves course_id from an activity_id-only
+  // CLI command. After that, use the SDK's homework detail helper: tronclass-api
+  // 4.0.1 falls back to /api/activities/{id} when the course-scoped endpoint 404s
+  // on tenants such as FJU.
   const courseId =
     activity.course_id ?? activity.courseId ?? activity.course?.id ?? null;
 
@@ -181,12 +174,10 @@ export async function runHomeworkView(
   let hwListError: string | null = null;
 
   if (courseId != null) {
-    if (opts.raw) {
-      try {
-        hwDetail = await api.assignments.getHomeworkDetail(Number(courseId), Number(activityId));
-      } catch (err) {
-        hwDetailError = err instanceof Error ? err.message : String(err);
-      }
+    try {
+      hwDetail = await api.assignments.getHomeworkDetail(Number(courseId), Number(activityId));
+    } catch (err) {
+      hwDetailError = err instanceof Error ? err.message : String(err);
     }
 
     try {
@@ -232,17 +223,20 @@ export async function runHomeworkView(
     return;
   }
 
-  // Merge metadata: prefer hwListMatch (has authoritative `submitted`), then activity.
-  const src: any = { ...activity, ...(hwListMatch ?? {}) };
+  // Merge metadata: detail may be richer, but hwListMatch carries the
+  // authoritative `submitted` flag used by `hw ls`.
+  const src: any = { ...activity, ...(hwDetail ?? {}), ...(hwListMatch ?? {}) };
 
   // Prefer the latest version of the submission; fall back to most recent timestamp.
   let submissions: any[] = submissionList.length
     ? submissionList
     : Array.isArray(hwListMatch?.submissions)
       ? hwListMatch.submissions
-      : Array.isArray(activity.submissions)
-        ? activity.submissions
-        : [];
+      : Array.isArray(hwDetail?.submissions)
+        ? hwDetail.submissions
+        : Array.isArray(activity.submissions)
+          ? activity.submissions
+          : [];
 
   // Filter: if any entry is marked as latest, only consider those.
   const latestVersions = submissions.filter((s: any) => s.is_latest_version === true);

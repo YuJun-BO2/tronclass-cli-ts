@@ -4,7 +4,7 @@ import * as path from "node:path";
 import * as mime from "mime-types";
 import { TronClass } from "tronclass-api";
 import { initApi, getCurrentUserId } from "./lib/client";
-import { unflattenFields, getNestedValue, apiError } from "./lib/utils";
+import { getNestedValue, apiError } from "./lib/utils";
 import {
   autoRenderTable,
   bold,
@@ -34,6 +34,32 @@ import prompts from "prompts";
  * Copyright (c) 2026 Seven317 (MIT License)
  */
 
+async function fetchAllHomeworkActivities(api: TronClass, courseId: number): Promise<any[]> {
+  const pageSize = 100;
+  const allHomework: any[] = [];
+
+  for (let page = 1; ; page++) {
+    const data = await api.callJson<any>(
+      `/api/courses/${courseId}/homework-activities?page=${page}&page_size=${pageSize}`,
+    );
+    const homework = Array.isArray(data?.homework_activities)
+      ? data.homework_activities
+      : [];
+
+    allHomework.push(...homework);
+
+    const pages = Number(data?.pages);
+    if (Number.isFinite(pages) && pages > 0) {
+      if (page >= pages) break;
+      continue;
+    }
+
+    if (homework.length < pageSize) break;
+  }
+
+  return allHomework;
+}
+
 export async function runHomeworkList(
   courseId: string,
   fields: string[] = ["id", "title", "deadline", "status", "score"]
@@ -41,7 +67,7 @@ export async function runHomeworkList(
   const { api } = await initApi();
 
   try {
-    const allHomework = await api.assignments.getHomeworkActivities(Number(courseId));
+    const allHomework = await fetchAllHomeworkActivities(api, Number(courseId));
 
     if (!allHomework || allHomework.length === 0) {
       console.log("No homework.");
@@ -164,7 +190,7 @@ export async function runHomeworkView(
     }
 
     try {
-      const list = await api.assignments.getHomeworkActivities(Number(courseId));
+      const list = await fetchAllHomeworkActivities(api, Number(courseId));
       hwListMatch = list.find((h: any) => String(h.id) === String(activityId)) ?? null;
     } catch (err) {
       hwListError = err instanceof Error ? err.message : String(err);
